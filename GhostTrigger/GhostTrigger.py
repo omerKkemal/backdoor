@@ -1,6 +1,39 @@
 #!/usr/bin/python
 #-*-coding:utf8;-*-
 
+"""
+GhostTrigger.py
+
+A multi-purpose network utility tool with features such as:
+- Remote command execution (Netcat-like)
+- File download and transfer
+- Simple HTTP server for file sharing
+- UDP flood (DoS testing)
+- Port scanning
+- Output saving and command help
+
+Usage:
+    python GhostTrigger.py [options]
+
+Options:
+    -h, --help, help         Show help message and usage.
+    -d, --download <url>     Download a file from the given URL.
+    -s, --port-scan <host>   Scan the given host for open ports.
+    -l, --listen [port]      Listen for incoming connections (default port 55555).
+    --udp-flood              (Disabled) UDP flood attack (for testing).
+    -ss, --server <path>     Run a simple HTTP server in the given directory.
+
+Interactive commands (when listening):
+    l-host <cmd>             Execute a command on the local host.
+    download <file>          Download a file from the remote host.
+    server <IP:PORT>         Start a server on the remote host.
+    target-ip                Show the target's IP address.
+    output_save True|False   Enable/disable saving command output to file.
+    help                     Show help message.
+
+Author: (Unknown)
+"""
+
 from urllib.request import urlretrieve
 import socketserver
 import http.server
@@ -14,9 +47,11 @@ import time
 import sys
 import os
 
+# Terminal color codes for output formatting
 BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m', '\33[93m', '\033[1;35m', '\033[1;32m', '\033[0m'
 
 def clear():
+    """Clear the terminal screen."""
     os.system("clear")
 
 
@@ -452,7 +487,6 @@ def main(port, _port):
 
 
 if __name__ == "__main__":
-    import sys
 
     host = ""
     port = 55555
