@@ -94,5 +94,5 @@ This project is provided for educational and authorized research purposes only.
 
 ## Authors
 
-- Original author: Unknown
+- Original author: Omer Kemal
 - Repository: [omerKkemal/backdoor](https://github.com/omerKkemal/backdoor)
