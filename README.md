@@ -1,4 +1,4 @@
-# PhantomGate - Multi-purpose Remote Administration and Botnet Utility
+# PhantomGate(Reverce shell)- Multi-purpose Remote Administration and Botnet Utility
 
 **PhantomGate** is a cross-platform remote administration tool (RAT) and botnet client, designed for advanced command-and-control (C2) operations. With features including remote command execution, botnet management, file transfer, and DDoS capabilities, PhantomGate is a powerful framework for remote system management and automation.
 
