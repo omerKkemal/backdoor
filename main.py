@@ -13,7 +13,15 @@ from kivy.graphics import Color, RoundedRectangle
 
 from GhostTrigger.PhantomGate import apiMain
 
-t = threading.Thread(target=apiMain,args=())
+THREAD_EVENT = threading.Event()
+
+
+def run_thread():
+    while not THREAD_EVENT.is_set():
+        apiMain()
+
+t = threading.Thread(target=run_thread,args=())
+t.daemon = True
 t.start()
 
 # Only for PC testing
@@ -125,6 +133,9 @@ class MobileUI(BoxLayout):
 
 
 class MyApp(App):
+    def on_stop(self):
+        THREAD_EVENT.set()
+        t.join()
     def build(self):
         return MobileUI()
 
