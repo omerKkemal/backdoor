@@ -10,8 +10,9 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.core.window import Window
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, RoundedRectangle
+from GhostTrigger.PhantomGate import apiMain,targetData
 
-from GhostTrigger.PhantomGate import apiMain
+
 
 THREAD_EVENT = threading.Event()
 
@@ -19,6 +20,7 @@ THREAD_EVENT = threading.Event()
 def run_thread():
     while not THREAD_EVENT.is_set():
         apiMain()
+    targetData(command='setPermission', ID=1, threadPermisstion='Deny')
 
 t = threading.Thread(target=run_thread,args=())
 t.daemon = True

