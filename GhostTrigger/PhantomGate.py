@@ -63,92 +63,90 @@ import os
 BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m', '\33[93m', '\033[1;35m', '\033[1;32m', '\033[0m'
 
 
-def targetData(command, user_name=None, ID=None,threadPermisstion='Allow', threadStatus='Running'):
+def targetData(command, user_name=None, ID=None, threadPermisstion='Allow', threadStatus='Running'):
     """
     Manages target data in a SQLite database.
     Args:
-        command (str): The command to execute ('create_target' or 'get').
+        command (str): The command to execute ('create_target', 'get', etc.).
         user_name (str, optional): The name of the target to create.
         ID (str, optional): The unique identifier for the target.
     Returns:
-        str or list: A message indicating success or failure for 'create_target',
-                     or a list of all target data for 'get'.
+        str or list: A message or data depending on the command.
     """
     conn = sqlite3.connect('info.db')
-    cursour = conn.cursor()
+    cursor = conn.cursor()
 
-    # Create tables separately
-    cursour.execute("""
-        CREATE TABLE IF NOT EXISTS target_data(
+    # Create tables
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS target_data (
             id TEXT PRIMARY KEY NOT NULL,
             target_name TEXT NOT NULL,
             is_registor TEXT
         )
     """)
 
-    cursour.execute("""
-        CREATE TABLE IF NOT EXISTS therade_permission(
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS therade_permission (
             id TEXT PRIMARY KEY NOT NULL,
             threadPermission TEXT NOT NULL
         )
     """)
 
-    cursour.execute("""
-        CREATE TABLE IF NOT EXISTS thread_status(
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS thread_status (
             thread_id TEXT PRIMARY KEY NOT NULL,
             threadStatus TEXT NOT NULL
         )
     """)
 
-
-    if command == 'create_target' and user_name != None and ID != None:
-        try:
-
-            cursour.execute('INSERT INTO target_data(id, target_name,is_registor) VALUES(?,?,?)',(ID,user_name,'0'))
-            conn.commit()
-            return "Target was created succssefuly"
-        
-        except Exception as e:
-
-            print(e)
-            return "Something went wronge"
-        
-    elif command == "get":
-
-        cursour.execute("SELECT * FROM target_data")
-        data = cursour.fetchall()
-        return data
-    elif command == 'setPermission':
-        # get all thread avilble
-        cursour.execute("SELECT * FROM therade_permission")
-        data = cursour.fetchall()
-        if len(data) != 0:
-            # check if the ID is already set
-            if data[0][0] == ID:
-                # update the thread permission
-                cursour.execute('UPDATE therade_permission SET threadPermission = ? WHERE id = ?', (threadPermisstion, ID))
+    try:
+        if command == 'create_target' and user_name and ID:
+            try:
+                cursor.execute('INSERT INTO target_data(id, target_name, is_registor) VALUES (?, ?, ?)', (ID, user_name, '0'))
                 conn.commit()
-                return "Thread permission was updated successfully"
-        # if not set insert the new one
-        cursour.execute('INSERT INTO therade_permission(id, threadPermission) VALUES(?,?)',(ID,threadPermisstion))
-        conn.commit()
-        return "Thread permission was set successfully"
-    elif command == 'save_thread_info':
-        cursour.execute('INSERT INTO thread_status(thread_id, threadStatus) VALUES(?,?)',(ID,threadStatus))
-        conn.commit()
-        return "Target was created succssefuly"
-    elif command == 'getThread':
+                return "Target was created successfully"
+            except sqlite3.IntegrityError:
+                return "Target ID already exists"
 
-        cursour.execute("SELECT * FROM thread_status")
-        data = cursour.fetchall()
-        return data
-    elif command == 'getPermission':
-        cursour.execute("SELECT * FROM therade_permission")
-        data = cursour.fetchall()
-        return data
+        elif command == 'get':
+            cursor.execute("SELECT * FROM target_data")
+            return cursor.fetchall()
+
+        elif command == 'setPermission' and ID:
+            cursor.execute('SELECT id FROM therade_permission WHERE id = ?', (ID,))
+            exists = cursor.fetchone()
+            if exists:
+                cursor.execute('UPDATE therade_permission SET threadPermission = ? WHERE id = ?', (threadPermisstion, ID))
+            else:
+                cursor.execute('INSERT INTO therade_permission(id, threadPermission) VALUES (?, ?)', (ID, threadPermisstion))
+            print('done! in or up')
+            conn.commit()
+            return "Thread permission was set/updated successfully"
+
+        elif command == 'save_thread_info' and ID:
+            cursor.execute('INSERT OR REPLACE INTO thread_status(thread_id, threadStatus) VALUES (?, ?)', (ID, threadStatus))
+            conn.commit()
+            return "Thread info saved successfully"
+
+        elif command == 'getThread':
+            cursor.execute("SELECT * FROM thread_status")
+            return cursor.fetchall()
+
+        elif command == 'getPermission':
+            cursor.execute("SELECT * FROM therade_permission")
+            return cursor.fetchall()
+
+        else:
+            return "Invalid command or missing parameters"
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Something went wrong"
+
+    finally:
+        conn.close()
 
 
-initPermission = targetData(command='setPermission')
 
 
 def is_android():

@@ -8,28 +8,33 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.core.window import Window
-from kivy.uix.widget import Widget
 from kivy.graphics import Color, RoundedRectangle
-from GhostTrigger.PhantomGate import apiMain,targetData
+# Importing the main function and targetData from PhantomGate
+from GhostTrigger.PhantomGate import main, targetData
 
-
-
+# Thread control event
 THREAD_EVENT = threading.Event()
+# Initialize permission for the thread
+# This is a placeholder for the actual permission setting logic
+initPermission = targetData(command='setPermission',ID=1,threadPermisstion='Allow')
 
-
+# Background worker thread to run main logic
 def run_thread():
-    while not THREAD_EVENT.is_set():
-        apiMain()
-    targetData(command='setPermission', ID=1, threadPermisstion='Deny')
+    try:
+        main()  # Assuming this loops internally
+    finally:
+        targetData(command='setPermission', ID="1", threadPermisstion='Deny')
+        print("Thread finished and permission denied.")
 
-t = threading.Thread(target=run_thread,args=())
+t = threading.Thread(target=run_thread)
 t.daemon = True
 t.start()
 
-# Only for PC testing
+# PC testing resolution
 Window.size = (360, 640)
 
 
+# ===================== DATABASE HANDLER ======================
 class MyDatabase:
     def __init__(self, db_name='people.db'):
         self.conn = sqlite3.connect(db_name)
@@ -60,7 +65,11 @@ class MyDatabase:
         cursor.execute('DELETE FROM people WHERE id = ?', (person_id,))
         self.conn.commit()
 
+    def close(self):
+        self.conn.close()
 
+
+# ===================== CARD COMPONENT ======================
 class Card(BoxLayout):
     def __init__(self, **kwargs):
         super(Card, self).__init__(**kwargs)
@@ -70,7 +79,7 @@ class Card(BoxLayout):
         self.size_hint_y = None
         self.height = 60
         with self.canvas.before:
-            Color(1, 1, 1, 1)  # White background
+            Color(1, 1, 1, 1)  # White
             self.bg = RoundedRectangle(radius=[10], pos=self.pos, size=self.size)
         self.bind(pos=self.update_bg, size=self.update_bg)
 
@@ -79,6 +88,7 @@ class Card(BoxLayout):
         self.bg.size = self.size
 
 
+# ===================== MAIN UI ======================
 class MobileUI(BoxLayout):
     def __init__(self, **kwargs):
         super(MobileUI, self).__init__(**kwargs)
@@ -100,7 +110,7 @@ class MobileUI(BoxLayout):
         self.input_card.add_widget(self.add_button)
         self.add_widget(self.input_card)
 
-        # Scrollable name list
+        # Scrollable list
         self.scroll = ScrollView()
         self.names_layout = GridLayout(cols=1, spacing=8, size_hint_y=None, padding=[0, 5])
         self.names_layout.bind(minimum_height=self.names_layout.setter('height'))
@@ -128,18 +138,24 @@ class MobileUI(BoxLayout):
             name_label = Label(text=name, font_size=18, color=(0, 0, 0, 1), halign='left', valign='middle')
             delete_button = Button(text='Delete', size_hint_x=None, width=80)
             delete_button.bind(on_press=lambda btn, pid=person_id: self.delete_name(pid))
-
             name_card.add_widget(name_label)
             name_card.add_widget(delete_button)
             self.names_layout.add_widget(name_card)
 
 
+# ===================== KIVY APP ======================
 class MyApp(App):
-    def on_stop(self):
-        THREAD_EVENT.set()
-        t.join()
     def build(self):
-        return MobileUI()
+        self.ui = MobileUI()
+        return self.ui
+
+    def on_stop(self):
+        print("Stopping the app and thread...")
+        THREAD_EVENT.set()
+        targetData(command='setPermission', ID="1", threadPermisstion='Deny')
+        print(targetData(command='getPermission'))
+        t.join(timeout=2)
+        self.ui.db.close()
 
 
 if __name__ == '__main__':
