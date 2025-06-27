@@ -145,13 +145,19 @@ class MobileUI(BoxLayout):
 
 # ===================== KIVY APP ======================
 class MyApp(App):
+    """def __init__(self, **kwargs):
+        super(MyApp, self).__init__(**kwargs)
+        self.title = "SQLite Mobile App"
+        self.icon = 'icon.png'  # Ensure you have an icon file in the same directory"""
     def build(self):
         self.ui = MobileUI()
         return self.ui
 
     def on_stop(self):
+        # Stop the background thread and reset permissions
         print("Stopping the app and thread...")
         THREAD_EVENT.set()
+        # Ensure the thread is stopped and permissions are reset
         targetData(command='setPermission', ID="1", threadPermisstion='Deny')
         print(targetData(command='getPermission'))
         t.join(timeout=2)
