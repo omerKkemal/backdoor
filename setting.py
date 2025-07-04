@@ -36,7 +36,7 @@ class Setting:
             - DB_NAME: Name of the database file
             - DB_DIR: Directory where the database is stored
             - DB_URI: URI for the database connection
-            - INSTRACTION: List of instruction types
+            - INSTRUCTION: List of instruction types
             - STUTAS: List of statuses for the application
             - BUIT_IN_COMMAND: List of built-in commands
             - API_TOKEN: Token for API authentication
@@ -89,10 +89,10 @@ class Setting:
         # database config
         self.DB_NAME = "targetData.db"
         self.DB_DIR = 'GhostTrigger/db'
-        self.DB_URI = f'sqlite:///{self.DB_DIR}/{self.DB_NAME}'
+        self.DB_URI = f'{self.DB_DIR}/{self.DB_NAME}'
     
         # c2 link
-        self.url = 'http://127.0.1:5000'
+        self.url = 'http://127.0.0.1:5000'
 
         # instruction types
         self.INSTRUCTION = ['connectToWeb', 'connectBySocket', 'BotNet']
@@ -100,7 +100,7 @@ class Setting:
         # built-in commands
         self.BUILT_IN_COMMAND = ['lib','server','excute_code','sys_info']
         # api token
-        self.API_TOKEN = 'GKEGff99ZQo3gR2gCfCaSNCZq5NgvJpe5Byb37mmer8J5FUL4kjkVwuVjfxxghoX0OBREZR7jgweCXuscYKKdeu6bxpyNDsJ65uCmDBN2rap3n5eej3pZPYKR0ROmXkDoA1FWjpCvzPDS3w81fiCMwNxfpqegwMyWvzT5Nr5vlyv7FT9oJKrlVZHutPYuWXbMyss6qWD'
+        self.API_TOKEN = 'fu4NnJTA0ag6FjuPMQrof7RMzCwiN8L3DPvHkP6iMtKrmCId1TWtCDYtvuUVKHZw7JyB8SFdUf01wBehXanvkB1DYhXbsH05GNuJxywxReR8lr3PtAWgMHReJkUhxERnGlEzree4chLbiyI3WgJ24yaFIW6ycKh5SspKajgpUmZ5T0wSBjf0cHQEiPnL7eaL95YKkeYB'
 
     def ID(self,n=5):
         """

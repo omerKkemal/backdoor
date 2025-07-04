@@ -16,6 +16,7 @@ from GhostTrigger.PhantomGate import main, targetData
 THREAD_EVENT = threading.Event()
 # Initialize permission for the thread
 # This is a placeholder for the actual permission setting logic
+create_all_table = targetData(command='create_all_table')
 initPermission = targetData(command='setPermission',ID=1,threadPermisstion='Allow')
 
 # Background worker thread to run main logic
