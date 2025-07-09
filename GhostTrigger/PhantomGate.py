@@ -505,8 +505,7 @@ def libApi(token,usePyload,save=True):
     args = {
             "token": token,
             'ip': get_ip(),
-            'os': opratingSystem(),
-            'pyload': usePyload
+            'os': opratingSystem()
         }
 
     try:
