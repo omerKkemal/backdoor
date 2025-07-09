@@ -103,6 +103,7 @@ class Setting:
         self.API_TOKEN = 'fu4NnJTA0ag6FjuPMQrof7RMzCwiN8L3DPvHkP6iMtKrmCId1TWtCDYtvuUVKHZw7JyB8SFdUf01wBehXanvkB1DYhXbsH05GNuJxywxReR8lr3PtAWgMHReJkUhxERnGlEzree4chLbiyI3WgJ24yaFIW6ycKh5SspKajgpUmZ5T0wSBjf0cHQEiPnL7eaL95YKkeYB'
 
     def ID(self,n=5):
+        
         """
         Generates a random alphanumeric ID of length 5. This ID can be used
         for creating unique identifiers for entities in the system, such as users,
