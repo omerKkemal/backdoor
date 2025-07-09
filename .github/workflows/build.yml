@@ -28,15 +28,15 @@ jobs:
 
       - name: Install system dependencies and Android SDK
         run: |
-          # System packages
+          # System dependencies
           sudo apt update
           sudo apt install -y zip unzip openjdk-11-jdk python3-pip libstdc++6 wget coreutils
 
-          # Python dependencies
+          # Python packages
           pip install --upgrade pip
           pip install buildozer cython
 
-          # Android SDK installation
+          # Install Android SDK
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
           cd /tmp
@@ -45,14 +45,14 @@ jobs:
           mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
           mv cmdline-tools-temp/cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/
 
-          # Add SDK tools to PATH
+          # Add SDK tools to PATH for current step
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
 
-          # Accept licenses and install build tools
+          # Accept licenses and install required SDK packages
           yes | sdkmanager --licenses
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-          # Make env variables available to future steps
+          # Persist env vars to future steps
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "PATH=$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
@@ -61,6 +61,11 @@ jobs:
         run: |
           mkdir -p ~/.buildozer/android/platform
           ln -sfn $HOME/android-sdk ~/.buildozer/android/platform/android-sdk
+
+      - name: Add legacy sdkmanager symlink for Buildozer compatibility
+        run: |
+          mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+          ln -sfn $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
 
       - name: Build with Buildozer
         run: buildozer android debug
