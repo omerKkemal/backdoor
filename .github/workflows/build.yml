@@ -31,7 +31,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install -y zip unzip openjdk-11-jdk python3-pip libncurses5 libstdc++6
+          sudo apt install -y zip unzip openjdk-11-jdk python3-pip libstdc++6 wget
           pip install --upgrade pip
           pip install buildozer cython
 
@@ -51,7 +51,7 @@ jobs:
       - name: Set environment variables
         run: |
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+          echo "PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH:$PATH" >> $GITHUB_ENV
 
       - name: Build with Buildozer
         run: buildozer android debug
