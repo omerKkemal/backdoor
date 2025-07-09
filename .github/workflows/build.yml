@@ -1,4 +1,5 @@
 name: CI
+
 on:
   push:
     branches: [ main ]
@@ -10,7 +11,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # used to cache dependencies with a timeout
       - name: Get Date
         id: get-date
         run: |
@@ -28,20 +28,36 @@ jobs:
           path: .buildozer
           key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Install Android SDK Build Tools
+      - name: Install system dependencies
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" "platform-tools" "platforms;android-34"
+          sudo apt update
+          sudo apt install -y zip unzip openjdk-11-jdk python3-pip libncurses5 libstdc++6
+          pip install --upgrade pip
+          pip install buildozer cython
+
+      - name: Install Android SDK Build Tools
+        env:
+          ANDROID_HOME: $HOME/android-sdk
+        run: |
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          cd $ANDROID_HOME/cmdline-tools
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip cmdline-tools.zip
+          mv cmdline-tools latest
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Set environment variables
+        run: |
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: master
+        run: buildozer android debug
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: bin/*.apk
