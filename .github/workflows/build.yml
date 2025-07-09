@@ -13,9 +13,7 @@ jobs:
 
       - name: Get Date
         id: get-date
-        run: |
-          echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
-        shell: bash
+        run: echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
 
       - name: Cache Buildozer global directory
         uses: actions/cache@v4
@@ -28,36 +26,38 @@ jobs:
           path: .buildozer
           key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: Install system dependencies
+      - name: Install system dependencies and SDK
         run: |
+          # System deps
           sudo apt update
           sudo apt install -y zip unzip openjdk-11-jdk python3-pip libstdc++6 wget coreutils
+
+          # Python tools
           pip install --upgrade pip
           pip install buildozer cython
 
-      - name: Set up Android SDK
-        env:
-          ANDROID_SDK_ROOT: $HOME/android-sdk
-        run: |
+          # Set SDK path
+          export ANDROID_SDK_ROOT=$HOME/android-sdk
           mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
           cd /tmp
+
+          # Download and unpack SDK tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
           unzip tools.zip -d cmdline-tools-temp
           mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
           mv cmdline-tools-temp/cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/
 
-      - name: Install Android SDK packages
-        run: |
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
+          # Add to PATH
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
+
+          # Accept licenses and install packages
           yes | sdkmanager --licenses
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Set environment variables
-        run: |
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+          # Save env vars for later steps
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build with Buildozer
         run: buildozer android debug
