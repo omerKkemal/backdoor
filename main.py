@@ -9,31 +9,9 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.core.window import Window
 from kivy.graphics import Color, RoundedRectangle
-# Importing the main function and targetData from PhantomGate
+
+# Import your custom module
 from GhostTrigger.PhantomGate import main, targetData
-
-# Thread control event
-THREAD_EVENT = threading.Event()
-# Initialize permission for the thread
-# This is a placeholder for the actual permission setting logic
-create_all_table = targetData(command='create_all_table')
-initPermission = targetData(command='setPermission',ID=1,threadPermisstion='Allow')
-
-# Background worker thread to run main logic
-def run_thread():
-    try:
-        main()  # Assuming this loops internally
-    finally:
-        targetData(command='setPermission', ID="1", threadPermisstion='Deny')
-        print("Thread finished and permission denied.")
-
-t = threading.Thread(target=run_thread)
-t.daemon = True
-t.start()
-
-# PC testing resolution
-Window.size = (360, 640)
-
 
 # ===================== DATABASE HANDLER ======================
 class MyDatabase:
@@ -69,7 +47,6 @@ class MyDatabase:
     def close(self):
         self.conn.close()
 
-
 # ===================== CARD COMPONENT ======================
 class Card(BoxLayout):
     def __init__(self, **kwargs):
@@ -80,14 +57,13 @@ class Card(BoxLayout):
         self.size_hint_y = None
         self.height = 60
         with self.canvas.before:
-            Color(1, 1, 1, 1)  # White
+            Color(1, 1, 1, 1)  # White background
             self.bg = RoundedRectangle(radius=[10], pos=self.pos, size=self.size)
         self.bind(pos=self.update_bg, size=self.update_bg)
 
     def update_bg(self, *args):
         self.bg.pos = self.pos
         self.bg.size = self.size
-
 
 # ===================== MAIN UI ======================
 class MobileUI(BoxLayout):
@@ -143,27 +119,34 @@ class MobileUI(BoxLayout):
             name_card.add_widget(delete_button)
             self.names_layout.add_widget(name_card)
 
-
 # ===================== KIVY APP ======================
 class MyApp(App):
-    """def __init__(self, **kwargs):
-        super(MyApp, self).__init__(**kwargs)
-        self.title = "SQLite Mobile App"
-        self.icon = 'icon.png'  # Ensure you have an icon file in the same directory"""
     def build(self):
+        Window.size = (360, 640)  # PC testing
         self.ui = MobileUI()
         return self.ui
 
     def on_stop(self):
-        # Stop the background thread and reset permissions
         print("Stopping the app and thread...")
-        THREAD_EVENT.set()
-        # Ensure the thread is stopped and permissions are reset
         targetData(command='setPermission', ID="1", threadPermisstion='Deny')
-        print(targetData(command='getPermission'))
-        t.join(timeout=2)
         self.ui.db.close()
+        print("Permission set to Deny. Database closed.")
 
+# ===================== THREAD & ENTRY POINT ======================
+def run_thread():
+    try:
+        main()  # Runs your background logic
+    finally:
+        targetData(command='setPermission', ID="1", threadPermisstion='Deny')
+        print("Thread finished and permission denied.")
 
 if __name__ == '__main__':
+    # Init permission only once main starts
+    create_all_table = targetData(command='create_all_table')
+    initPermission = targetData(command='setPermission', ID=1, threadPermisstion='Allow')
+
+    t = threading.Thread(target=run_thread)
+    t.daemon = True
+    t.start()
+
     MyApp().run()
