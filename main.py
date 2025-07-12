@@ -11,7 +11,10 @@ from kivy.core.window import Window
 from kivy.graphics import Color, RoundedRectangle
 
 # Import your custom module
-from GhostTrigger.PhantomGate import main, targetData
+try:
+    from GhostTrigger.PhantomGate import main, targetData
+except:
+    pass
 
 # ===================== DATABASE HANDLER ======================
 class MyDatabase:
